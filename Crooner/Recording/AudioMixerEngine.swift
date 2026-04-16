@@ -58,11 +58,11 @@ final class AudioMixerEngine {
     private let micMixer       = AVAudioMixerNode()
     private let sysAudioPlayer = AVAudioPlayerNode()
     private let sysAudioMixer  = AVAudioMixerNode()
-    /// Recording sink.  mic + sysAudio both connect here; the tap reads from it.
-    /// Deliberately NOT connected to mainMixerNode so nothing reaches the
-    /// hardware output — eliminating headphone loopback without silencing
-    /// the tap (which is what setting mainMixerNode.outputVolume = 0 would do).
-    private let recordMixer    = AVAudioMixerNode()
+    /// Sits between the sources and mainMixerNode.  The recording tap lives
+    /// here so it reads the full signal BEFORE mainMixerNode.outputVolume = 0
+    /// silences the hardware path.  Keeping the graph fully connected to the
+    /// output node ensures AVAudioEngine starts reliably.
+    private let tapMixer       = AVAudioMixerNode()
 
     /// Standard format we request from SCKit and expect on `feedSystemAudio`.
     /// Must match `SCStreamConfiguration.sampleRate` / `channelCount` (both default to 48 kHz / 2 ch).
@@ -98,11 +98,15 @@ final class AudioMixerEngine {
         let (stream, continuation) = AsyncStream.makeStream(of: AVAudioPCMBuffer.self)
         lock.withLock { self.continuation = continuation }
 
-        // Tap recordMixer to capture the mix for writing.  recordMixer is not
-        // connected to mainMixerNode, so the signal never reaches the hardware
-        // output — no headphone loopback.  Passing nil lets AVAudioEngine pick
-        // the native format of the node.
-        recordMixer.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [weak self] buffer, _ in
+        // Silence hardware output — nothing plays to speakers or headphones.
+        // This is set on mainMixerNode (downstream of the tap), so the tap
+        // on tapMixer still receives the full unsilenced mix.
+        engine.mainMixerNode.outputVolume = 0
+
+        // Tap tapMixer to capture the mix for writing.  Because tapMixer sits
+        // upstream of mainMixerNode, its output is unaffected by the zero
+        // output volume set above.
+        tapMixer.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [weak self] buffer, _ in
             guard let self else { return }
             lock.withLock { _ = self.continuation?.yield(buffer) }
         }
@@ -112,7 +116,7 @@ final class AudioMixerEngine {
         do {
             try engine.start()
         } catch {
-            recordMixer.removeTap(onBus: 0)
+            tapMixer.removeTap(onBus: 0)
             if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
             lock.withLock { self.continuation?.finish(); self.continuation = nil }
             throw AudioMixerError.engineStartFailed(error)
@@ -124,7 +128,7 @@ final class AudioMixerEngine {
 
     /// Stop the engine and finish the output stream.
     func stop() {
-        recordMixer.removeTap(onBus: 0)
+        tapMixer.removeTap(onBus: 0)
         if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
         smoothedLevel = 0
         sysAudioPlayer.stop()
@@ -204,22 +208,24 @@ final class AudioMixerEngine {
         engine.attach(micMixer)
         engine.attach(sysAudioPlayer)
         engine.attach(sysAudioMixer)
-        engine.attach(recordMixer)
+        engine.attach(tapMixer)
 
-        // Mic: inputNode → micMixer → recordMixer
+        // Mic: inputNode → micMixer → tapMixer
         let micFormat = engine.inputNode.outputFormat(forBus: 0)
         if micFormat.sampleRate > 0 {
-            engine.connect(engine.inputNode, to: micMixer,    format: micFormat)
-            engine.connect(micMixer,         to: recordMixer, format: micFormat)
+            engine.connect(engine.inputNode, to: micMixer, format: micFormat)
+            engine.connect(micMixer,         to: tapMixer, format: micFormat)
         }
 
-        // System audio: playerNode → sysAudioMixer → recordMixer
+        // System audio: playerNode → sysAudioMixer → tapMixer
         engine.connect(sysAudioPlayer, to: sysAudioMixer, format: Self.systemAudioFormat)
-        engine.connect(sysAudioMixer,  to: recordMixer,   format: Self.systemAudioFormat)
+        engine.connect(sysAudioMixer,  to: tapMixer,      format: Self.systemAudioFormat)
 
-        // recordMixer is intentionally not connected to mainMixerNode or
-        // outputNode — the tap on it captures everything for recording, but
-        // nothing plays to hardware.
+        // tapMixer → mainMixerNode → outputNode
+        // The graph must be fully connected for engine.start() to succeed.
+        // mainMixerNode.outputVolume is set to 0 in start() to prevent
+        // loopback; tapMixer's output is unaffected because it is upstream.
+        engine.connect(tapMixer, to: engine.mainMixerNode, format: nil)
     }
 
     private func applyVolumes() {

@@ -35,7 +35,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
                 switch state {
+                case .countdown:
+                    // Dismiss the panel the moment the user hits Record —
+                    // before the countdown has even finished.
+                    self?.popover?.performClose(nil)
                 case .recording:
+                    // Also close in case countdown was skipped (0 s setting).
                     self?.popover?.performClose(nil)
                     self?.startReelAnimation()
                 case .paused:
