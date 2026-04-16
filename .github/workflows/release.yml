@@ -72,11 +72,17 @@ jobs:
 
       - name: Notarize app
         run: |
-          xcrun notarytool submit build/export/Crooner.app \
+          # notarytool requires a zip, pkg, or dmg — not a bare .app bundle.
+          # ditto preserves symlinks and resource forks correctly.
+          ditto -c -k --keepParent build/export/Crooner.app build/Crooner.zip
+
+          xcrun notarytool submit build/Crooner.zip \
             --apple-id  "${{ secrets.APPLE_ID }}" \
             --password  "${{ secrets.APPLE_APP_PASSWORD }}" \
             --team-id   "${{ secrets.APPLE_TEAM_ID }}" \
             --wait
+
+          # Staple the ticket to the .app itself (not the zip).
           xcrun stapler staple build/export/Crooner.app
 
       - name: Extract version from tag
