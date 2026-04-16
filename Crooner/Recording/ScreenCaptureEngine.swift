@@ -3,6 +3,10 @@ import CoreMedia
 import CoreVideo
 import Foundation
 
+// CMSampleBuffer is a Core Foundation reference type whose contents are
+// immutable once created; it's safe to cross actor boundaries.
+extension CMSampleBuffer: @retroactive @unchecked Sendable {}
+
 // MARK: - Errors
 
 enum CaptureError: LocalizedError {
@@ -178,6 +182,8 @@ extension ScreenCaptureEngine: SCStreamOutput {
             lock.withLock { _ = continuation?.yield(sampleBuffer) }
         case .audio:
             audioBufferHandler?(sampleBuffer)
+        case .microphone:
+            break   // microphone audio routed separately on macOS 15+
         @unknown default:
             break
         }
