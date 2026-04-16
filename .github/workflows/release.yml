@@ -1,19 +1,74 @@
 name: Release
 
+# Triggered when a PR labelled release: patch / minor / major merges into main.
+# Computes the next semver tag, pushes it, then builds, signs, notarises,
+# and publishes the DMG — all in one job so there's no cross-workflow
+# token boundary to cross.
+
 on:
-  push:
-    tags:
-      - 'v*'
+  pull_request:
+    types: [closed]
+    branches: [main]
 
 jobs:
   release:
+    if: >-
+      github.event.pull_request.merged == true &&
+      (
+        contains(github.event.pull_request.labels.*.name, 'release: patch') ||
+        contains(github.event.pull_request.labels.*.name, 'release: minor') ||
+        contains(github.event.pull_request.labels.*.name, 'release: major')
+      )
     runs-on: macos-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout
+      - name: Checkout (full history for tag enumeration)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── Version ────────────────────────────────────────────────────────
+
+      - name: Determine bump type from PR label
+        id: bump
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          if echo "$LABELS" | grep -q 'release: major'; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$LABELS" | grep -q 'release: minor'; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute next version
+        id: version
+        run: |
+          LATEST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -1)
+          [ -z "$LATEST" ] && LATEST="v0.0.0"
+          VERSION="${LATEST#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+          case "${{ steps.bump.outputs.type }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            *)     PATCH=$((PATCH + 1)) ;;
+          esac
+          echo "tag=v${MAJOR}.${MINOR}.${PATCH}"   >> "$GITHUB_OUTPUT"
+          echo "value=${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_OUTPUT"
+
+      - name: Push tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      # ── Build ──────────────────────────────────────────────────────────
 
       - name: Install tools
         run: brew install xcodegen create-dmg
@@ -34,8 +89,6 @@ jobs:
 
           echo "$CERTIFICATE_BASE64" | tr -d '\n' | base64 --decode > /tmp/certificate.p12
 
-          # Verify the decoded file looks like a valid PKCS12 before attempting import.
-          # openssl gives clearer diagnostics than security import.
           echo "Certificate file size: $(wc -c < /tmp/certificate.p12) bytes"
           openssl pkcs12 \
             -in /tmp/certificate.p12 \
@@ -74,22 +127,13 @@ jobs:
 
       - name: Notarize app
         run: |
-          # notarytool requires a zip, pkg, or dmg — not a bare .app bundle.
-          # ditto preserves symlinks and resource forks correctly.
           ditto -c -k --keepParent build/export/Crooner.app build/Crooner.zip
-
           xcrun notarytool submit build/Crooner.zip \
             --apple-id  "${{ secrets.APPLE_ID }}" \
             --password  "${{ secrets.APPLE_APP_PASSWORD }}" \
             --team-id   "${{ secrets.APPLE_TEAM_ID }}" \
             --wait
-
-          # Staple the ticket to the .app itself (not the zip).
           xcrun stapler staple build/export/Crooner.app
-
-      - name: Extract version from tag
-        id: version
-        run: echo "value=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Build DMG
         run: |
@@ -117,5 +161,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
           files: build/Crooner-${{ steps.version.outputs.value }}.dmg
           generate_release_notes: true
