@@ -24,7 +24,7 @@ targets:
       path: Crooner/Crooner.entitlements
       properties:
         com.apple.security.device.camera: true
-        com.apple.security.device.microphone: true
+        com.apple.security.device.audio-input: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.crooner.app
