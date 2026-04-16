@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMedia
 import CoreVideo
 import Foundation
@@ -151,6 +151,12 @@ final class WebcamCaptureEngine: NSObject {
         }
     }
 }
+
+// MARK: - Sendable
+
+// WebcamCaptureEngine uses NSLock to protect all shared state, making it safe
+// to cross actor boundaries even though it doesn't participate in Swift actors.
+extension WebcamCaptureEngine: @unchecked Sendable {}
 
 // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
 

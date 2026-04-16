@@ -74,7 +74,7 @@ class PermissionManager: ObservableObject {
     /// Camera/mic are requested individually via the onboarding screen.
     func requestAll() async {
         await checkAll()
-        try? await UNUserNotificationCenter.current()
+        _ = try? await UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound])
     }
 

@@ -3,7 +3,7 @@ import AVFoundation
 import Combine
 import CoreAudio
 import SwiftUI
-import UserNotifications
+@preconcurrency import UserNotifications
 
 // MARK: - State
 
@@ -303,6 +303,32 @@ final class RecordingSession: ObservableObject {
 
         postSaveNotification(url: url)
         return url
+    }
+
+    /// Stop capture without saving: abandons the partial file and deletes it from disk.
+    func discardRecording() async {
+        guard state == .recording || state == .paused else { return }
+
+        state        = .finishing
+        elapsedTimer = nil
+        compositorSyncSubs.removeAll()
+
+        await screenEngine?.stop()
+        await webcamEngine?.stop()
+        audioMixer?.stop()
+        await compositor?.stop()
+
+        try? await Task.sleep(for: .milliseconds(150))
+
+        if let writer = fileWriter {
+            await writer.cancel()
+        }
+
+        tearDown()
+        elapsed      = 0
+        isMuted      = false
+        audioSources = []
+        state        = .idle
     }
 
     // MARK: - Private: timer

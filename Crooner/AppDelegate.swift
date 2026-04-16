@@ -40,6 +40,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 case .staged:
                     // Dismiss the popover as soon as the user taps Go.
                     self?.popover?.performClose(nil)
+                case .countdown:
+                    // Safety net: also close if still open when countdown starts.
+                    self?.popover?.performClose(nil)
                 case .recording:
                     self?.startReelAnimation()
                 case .paused:
@@ -170,7 +173,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 // MARK: - UNUserNotificationCenterDelegate
 
-extension AppDelegate: UNUserNotificationCenterDelegate {
+extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
 
     /// Called when the user taps a notification action while the app is in the foreground.
     func userNotificationCenter(
