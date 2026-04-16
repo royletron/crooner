@@ -1,148 +1,68 @@
 # Releasing Crooner
 
-## Prerequisites
+Releases are fully automated. The procedure is as follows:
 
-- Xcode 15+
-- Apple Developer account enrolled in the Developer ID program
-- `notarytool` credentials stored in keychain (see step 4)
-- `create-dmg` installed: `brew install create-dmg`
+1. Merge a pull request into `main` that carries one of these labels:
 
-## Steps
+   | Label | Semver bump |
+   |---|---|
+   | `release: patch` | `x.y.Z+1` — bug fixes |
+   | `release: minor` | `x.Y+1.0` — new features |
+   | `release: major` | `X+1.0.0` — breaking changes |
 
-### 1. Bump the version
+2. That is the entirety of your obligation.
 
-Edit `project.yml` and set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`:
+GitHub Actions will compute the next version from the highest existing tag,
+push a new `vX.Y.Z` tag, build a signed and notarised DMG, and publish it
+as a GitHub Release with automatically generated notes drawn from every PR
+merged since the previous release.
 
-```yaml
-settings:
-  base:
-    MARKETING_VERSION: "1.2.0"        # shown in About box / App Store
-    CURRENT_PROJECT_VERSION: "42"     # monotonically increasing build number
-```
+---
 
-Then regenerate the project:
+## Re-running a failed build
 
-```bash
-xcodegen generate
-```
+Should the workflow suffer some mechanical misfortune after the tag has
+already been pushed, visit:
 
-### 2. Archive
+**Actions → Release → Run workflow**
 
-```bash
-xcodebuild archive \
-  -scheme Crooner \
-  -configuration Release \
-  -archivePath build/Crooner.xcarchive
-```
+Supply the existing tag (e.g. `v1.2.3`) and the build will proceed without
+creating a duplicate tag.
 
-Or use **Xcode → Product → Archive** and confirm the scheme is set to *Release*.
+---
 
-### 3. Export with Developer ID
+## Required repository secrets
 
-```bash
-xcodebuild -exportArchive \
-  -archivePath build/Crooner.xcarchive \
-  -exportPath   build/export \
-  -exportOptionsPlist ExportOptions.plist
-```
+These must be configured once under **Settings → Secrets → Actions**:
 
-`ExportOptions.plist` (create once, commit to repo):
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key>             <string>developer-id</string>
-  <key>signingStyle</key>       <string>automatic</string>
-  <key>teamID</key>             <string>YOUR_TEAM_ID</string>
-  <key>hardendedRuntime</key>   <true/>
-  <key>stripSwiftSymbols</key>  <true/>
-</dict>
-</plist>
-```
-
-Replace `YOUR_TEAM_ID` with your 10-character Apple team identifier.
-
-### 4. Store notarytool credentials (one-time)
-
-```bash
-xcrun notarytool store-credentials "crooner-notary" \
-  --apple-id  "you@example.com" \
-  --team-id   "YOUR_TEAM_ID" \
-  --password  "@keychain:AC_PASSWORD"   # app-specific password
-```
-
-### 5. Notarise
-
-```bash
-xcrun notarytool submit build/export/Crooner.app \
-  --keychain-profile "crooner-notary" \
-  --wait
-```
-
-The `--wait` flag blocks until Apple returns a result (usually under 2 minutes).
-On success you'll see `status: Accepted`.
-
-### 6. Staple the ticket
-
-```bash
-xcrun stapler staple build/export/Crooner.app
-```
-
-Verify:
-
-```bash
-spctl --assess --type execute --verbose build/export/Crooner.app
-```
-
-Expected output: `source=Notarized Developer ID`.
-
-### 7. Build the DMG
-
-```bash
-create-dmg \
-  --volname "Crooner" \
-  --volicon "Crooner/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png" \
-  --window-pos  200 120 \
-  --window-size 600 400 \
-  --icon-size 128 \
-  --icon "Crooner.app" 150 185 \
-  --app-drop-link 450 185 \
-  "build/Crooner-1.0.0.dmg" \
-  "build/export/"
-```
-
-Update the version in the filename each release.
-
-### 8. Notarise the DMG
-
-Repeat steps 5–6 for the `.dmg`:
-
-```bash
-xcrun notarytool submit "build/Crooner-1.0.0.dmg" \
-  --keychain-profile "crooner-notary" \
-  --wait
-
-xcrun stapler staple "build/Crooner-1.0.0.dmg"
-```
-
-### 9. Verify and distribute
-
-```bash
-spctl --assess --type open --context context:primary-signature \
-  --verbose "build/Crooner-1.0.0.dmg"
-```
-
-Upload `build/Crooner-1.0.0.dmg` to GitHub Releases, your website, or wherever
-you distribute the app.
-
-## Troubleshooting
-
-| Symptom | Fix |
+| Secret | Description |
 |---|---|
-| `The executable does not have the hardened runtime enabled` | Confirm `ENABLE_HARDENED_RUNTIME = YES` in project.yml and re-archive |
-| Notarisation rejected — camera/mic entitlements | Ensure entitlements file is included in the archive; check with `codesign -d --entitlements - Crooner.app` |
-| `spctl` says *rejected* after stapling | The staple ticket may not have been written; re-run `stapler staple` and verify with `stapler validate` |
-| AVFoundation/ScreenCaptureKit crash on first launch | macOS 13 Gatekeeper quarantine: users must right-click → Open on first launch, or you must clear quarantine with `xattr -cr Crooner.app` before packaging |
+| `APPLE_CERTIFICATE` | Base64-encoded Developer ID Application `.p12` certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for the `.p12` |
+| `KEYCHAIN_PASSWORD` | Any strong password — used for the ephemeral CI keychain |
+| `APPLE_ID` | Apple ID email used for notarisation |
+| `APPLE_APP_PASSWORD` | App-specific password for notarisation |
+| `APPLE_TEAM_ID` | 10-character Apple Developer team identifier |
+
+To encode your certificate:
+
+```bash
+base64 -i DeveloperIDApplication.p12 | pbcopy
+```
+
+Paste the result directly into the secret — no newlines, no wrapping.
+
+---
+
+## Local development builds
+
+No signing or notarisation is required for local development. Simply:
+
+```bash
+brew install xcodegen
+xcodegen generate
+open Crooner.xcodeproj
+```
+
+Build and run with your own development certificate. macOS will prompt for
+permissions on first launch as it would for any unsigned local build.

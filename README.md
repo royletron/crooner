@@ -113,14 +113,17 @@ Crooner is constructed entirely in native Swift, with no external dependencies, 
 
 ## Releasing a New Version
 
-Consult [`RELEASING.md`](RELEASING.md) for the full procedure. The short of it:
+Open a pull request in the customary fashion. Before merging, affix one of the following labels to declare the nature of the occasion:
 
-```bash
-git tag v1.2.0
-git push origin v1.2.0
-```
+| Label | Effect |
+|---|---|
+| `release: patch` | Bug fixes and minor corrections — `x.y.Z+1` |
+| `release: minor` | New features, backwards-compatible — `x.Y+1.0` |
+| `release: major` | Breaking changes of consequence — `X+1.0.0` |
 
-GitHub Actions will handle the rest — building, signing, notarising, packaging, and publishing the DMG — while you attend to other matters.
+Upon merging, GitHub Actions will determine the next version, affix the appropriate tag, and proceed to build, sign, notarise, package, and publish the DMG to the Releases page — entirely unattended. You need not lift a further finger.
+
+Should you need to re-run the build for an existing tag (in the event of some mechanical misfortune), visit **Actions → Release → Run workflow** and supply the tag name.
 
 ---
 
