@@ -93,7 +93,7 @@ private struct NeedleShape: Shape, Animatable {
         //   x-offset = sin(θ) * length
         //   y-offset = –cos(θ) * length  (negative = upward)
         let angleDeg = -45.0 + level * 90.0
-        let rad      = angleDeg * .pi / 180.0
+        let rad      = CGFloat(angleDeg * .pi / 180.0)
         let tip = CGPoint(
             x: pivot.x + sin(rad) * length,
             y: pivot.y - cos(rad) * length
