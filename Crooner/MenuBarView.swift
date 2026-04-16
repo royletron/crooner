@@ -39,9 +39,20 @@ struct MenuBarView: View {
                 if permissions.allGranted {
                     SourcePickerView()
                 } else {
-                    PermissionBannerView()
-                        .padding(.bottom, 8)
-                    Spacer()
+                    VStack(spacing: 0) {
+                        Text("Permissions required")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                            .padding(.bottom, 4)
+                        Divider()
+                        PermissionBannerView()
+                        Divider()
+                        Spacer()
+                    }
                 }
 
             case .recordings:
