@@ -58,6 +58,11 @@ final class AudioMixerEngine {
     private let micMixer       = AVAudioMixerNode()
     private let sysAudioPlayer = AVAudioPlayerNode()
     private let sysAudioMixer  = AVAudioMixerNode()
+    /// Recording sink.  mic + sysAudio both connect here; the tap reads from it.
+    /// Deliberately NOT connected to mainMixerNode so nothing reaches the
+    /// hardware output — eliminating headphone loopback without silencing
+    /// the tap (which is what setting mainMixerNode.outputVolume = 0 would do).
+    private let recordMixer    = AVAudioMixerNode()
 
     /// Standard format we request from SCKit and expect on `feedSystemAudio`.
     /// Must match `SCStreamConfiguration.sampleRate` / `channelCount` (both default to 48 kHz / 2 ch).
@@ -93,14 +98,11 @@ final class AudioMixerEngine {
         let (stream, continuation) = AsyncStream.makeStream(of: AVAudioPCMBuffer.self)
         lock.withLock { self.continuation = continuation }
 
-        // Silence the hardware output so the recording mix never plays back
-        // through speakers or headphones.  The tap below captures everything
-        // before the output stage, so recorded audio is unaffected.
-        engine.mainMixerNode.outputVolume = 0
-
-        // Install tap after connecting but before starting.
-        let tapFormat = engine.mainMixerNode.outputFormat(forBus: 0)
-        engine.mainMixerNode.installTap(onBus: 0, bufferSize: 4_096, format: tapFormat) { [weak self] buffer, _ in
+        // Tap recordMixer to capture the mix for writing.  recordMixer is not
+        // connected to mainMixerNode, so the signal never reaches the hardware
+        // output — no headphone loopback.  Passing nil lets AVAudioEngine pick
+        // the native format of the node.
+        recordMixer.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [weak self] buffer, _ in
             guard let self else { return }
             lock.withLock { _ = self.continuation?.yield(buffer) }
         }
@@ -110,7 +112,7 @@ final class AudioMixerEngine {
         do {
             try engine.start()
         } catch {
-            engine.mainMixerNode.removeTap(onBus: 0)
+            recordMixer.removeTap(onBus: 0)
             if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
             lock.withLock { self.continuation?.finish(); self.continuation = nil }
             throw AudioMixerError.engineStartFailed(error)
@@ -122,7 +124,7 @@ final class AudioMixerEngine {
 
     /// Stop the engine and finish the output stream.
     func stop() {
-        engine.mainMixerNode.removeTap(onBus: 0)
+        recordMixer.removeTap(onBus: 0)
         if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
         smoothedLevel = 0
         sysAudioPlayer.stop()
@@ -202,17 +204,22 @@ final class AudioMixerEngine {
         engine.attach(micMixer)
         engine.attach(sysAudioPlayer)
         engine.attach(sysAudioMixer)
+        engine.attach(recordMixer)
 
-        // Mic: inputNode → micMixer → mainMixerNode
+        // Mic: inputNode → micMixer → recordMixer
         let micFormat = engine.inputNode.outputFormat(forBus: 0)
         if micFormat.sampleRate > 0 {
-            engine.connect(engine.inputNode, to: micMixer, format: micFormat)
-            engine.connect(micMixer, to: engine.mainMixerNode, format: micFormat)
+            engine.connect(engine.inputNode, to: micMixer,    format: micFormat)
+            engine.connect(micMixer,         to: recordMixer, format: micFormat)
         }
 
-        // System audio: playerNode → sysAudioMixer → mainMixerNode
+        // System audio: playerNode → sysAudioMixer → recordMixer
         engine.connect(sysAudioPlayer, to: sysAudioMixer, format: Self.systemAudioFormat)
-        engine.connect(sysAudioMixer,  to: engine.mainMixerNode, format: Self.systemAudioFormat)
+        engine.connect(sysAudioMixer,  to: recordMixer,   format: Self.systemAudioFormat)
+
+        // recordMixer is intentionally not connected to mainMixerNode or
+        // outputNode — the tap on it captures everything for recording, but
+        // nothing plays to hardware.
     }
 
     private func applyVolumes() {

@@ -151,6 +151,12 @@ jobs:
 
       - name: Build DMG
         run: |
+          # Stage only the .app so that xcodebuild's export artefacts
+          # (DistributionSummary.plist, ExportOptions.plist, Packaging.log)
+          # do not end up inside the DMG.
+          mkdir -p build/dmg-staging
+          cp -R build/export/Crooner.app build/dmg-staging/
+
           create-dmg \
             --volname "Crooner" \
             --window-pos  200 120 \
@@ -159,7 +165,7 @@ jobs:
             --icon "Crooner.app" 150 185 \
             --app-drop-link 450 185 \
             "build/Crooner-${{ steps.version.outputs.value }}.dmg" \
-            "build/export/"
+            "build/dmg-staging/"
 
       - name: Notarize DMG
         run: |
