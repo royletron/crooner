@@ -28,7 +28,7 @@ struct EffectParticle: Identifiable {
     }
 
     var maxAge: Double {
-        switch kind { case .trail: return 1.5;  case .click: return 0.65 }
+        switch kind { case .trail: return 0.9;  case .click: return 0.45 }
     }
 
     /// 0 = just born, 1 = fully expired.
@@ -59,7 +59,7 @@ struct EffectParticle: Identifiable {
         case .trail:
             return 1.0 - p * 0.4      // shrinks to 60 %
         case .click:
-            return 1.0 + p * 2.5      // expands to 3.5 ×
+            return 1.0 + p * 0.9      // expands to 1.9 ×  (subtle ripple)
         }
     }
 

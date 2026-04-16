@@ -341,20 +341,21 @@ actor CompositorPipeline {
             switch p.kind {
             case .trail:
                 if meta.trailEnabled, let emojiCI = meta.emojiImage {
-                    // Stamp pre-rendered emoji, centred on the particle position.
-                    let ew = emojiCI.extent.width
-                    let eh = emojiCI.extent.height
+                    // Draw at 40 logical-point equivalent in video pixels.
+                    // scaleX converts points → pixels, normalising for display density.
+                    // sc (already in the context transform) handles per-frame shrink.
+                    let targetPx = 40.0 * scaleX
                     if let cg = ciContext.createCGImage(emojiCI, from: emojiCI.extent) {
-                        ctx.draw(cg, in: CGRect(x: -ew / 2, y: -eh / 2,
-                                               width: ew,  height: eh))
+                        ctx.draw(cg, in: CGRect(x: -targetPx / 2, y: -targetPx / 2,
+                                               width: targetPx,   height: targetPx))
                     }
                 }
 
             case .click:
                 if meta.clickEnabled {
-                    let baseR: CGFloat = 28 * max(scaleX, scaleY)
-                    let r       = baseR          // sc already applied via ctx transform
-                    let lineW   = max(1, 4 * (1 - CGFloat(p.progress(at: now))))
+                    // Match overlay: 14pt base, sc already in transform.
+                    let r      = 14.0 * scaleX
+                    let lineW  = max(1, (2.0 * scaleX) * (1 - CGFloat(p.progress(at: now))))
                     ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
                     ctx.setLineWidth(lineW)
                     ctx.strokeEllipse(in: CGRect(x: -r, y: -r, width: r * 2, height: r * 2))

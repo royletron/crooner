@@ -44,10 +44,9 @@ struct EffectsOverlayView: View {
                             drawEmoji(emoji, in: cg, size: 40)
 
                         case .click:
-                            // Expanding white ring.
-                            let baseR: CGFloat = 24
-                            let r = baseR * sc
-                            let lineW: CGFloat = max(1, 3 * (1 - p.progress(at: now)))
+                            // Subtle expanding ring — sc is already in the context transform.
+                            let r: CGFloat = 14
+                            let lineW: CGFloat = max(0.5, 2 * (1 - p.progress(at: now)))
                             cg.setStrokeColor(
                                 CGColor(red: 1, green: 1, blue: 1, alpha: α)
                             )

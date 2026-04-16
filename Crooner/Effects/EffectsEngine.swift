@@ -122,7 +122,7 @@ final class EffectsEngine: ObservableObject {
     private func handleMouseMove() {
         guard mouseTrailEnabled else { return }
         let now = CACurrentMediaTime()
-        guard now - lastTrailTime > 0.08 else { return }   // ≈ 12 particles/sec
+        guard now - lastTrailTime > 0.035 else { return }   // ≈ 28 particles/sec
         lastTrailTime = now
         spawnParticle(.trail(emoji: trailEmoji), at: NSEvent.mouseLocation)
     }
@@ -138,8 +138,8 @@ final class EffectsEngine: ObservableObject {
             origin:     position,
             birth:      CACurrentMediaTime(),
             kind:       kind,
-            driftX:     Double.random(in: -25...25),
-            driftY:     Double.random(in: 15...55),
+            driftX:     Double.random(in: -50...50),
+            driftY:     Double.random(in: 90...200),
             spinOffset: Double.random(in: -.pi...(.pi))
         )
         particles.append(p)
