@@ -62,9 +62,17 @@ class PermissionManager: ObservableObject {
     /// Screen recording cannot be requested programmatically; the banner surfaces the System Settings link.
     /// Notification permission is requested here too — it doesn't block recording.
     func requestAll() async {
+        // Bring the app to the front before requesting permissions — macOS 14+
+        // can silently suppress TCC dialogs for apps that don't have focus.
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
         let cameraGranted = await AVCaptureDevice.requestAccess(for: .video)
         cameraStatus = cameraGranted ? .granted : .denied
 
+        // Re-activate before the microphone request: the camera dialog dismissal
+        // returns focus to the previously active app, which causes macOS 14+ to
+        // silently suppress the next TCC dialog for a background process.
+        NSApplication.shared.activate(ignoringOtherApps: true)
         let micGranted = await AVCaptureDevice.requestAccess(for: .audio)
         microphoneStatus = micGranted ? .granted : .denied
 
