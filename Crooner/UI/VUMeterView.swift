@@ -1,44 +1,46 @@
 import SwiftUI
 
-/// Compact segmented-bar level meter — 10 rounded rectangles that light up
-/// left-to-right across green → amber → red zones.
+/// Minimal audio-level indicator — three animated bars whose heights track
+/// the microphone level, similar to the indicator used in Google Meet.
 ///
-/// The level input is already smoothed (fast-attack / slow-decay) by the
-/// audio engine, so no additional animation is needed here.
+/// All bars are monochromatic; they never change colour.  The level drives
+/// height only, giving a clean "simplified waveform" appearance.
 struct VUMeterView: View {
-    /// Normalised input level from the audio engine (0 = silence, 1 = 0 dB).
+    /// Normalised input level from the audio engine (0 = silence, 1 = full).
     let level: Float
 
-    private static let segmentCount = 10
+    // The three bars have different maximum heights so they form a natural
+    // wave silhouette rather than a uniform block.
+    private let scales: [Double] = [0.55, 1.0, 0.70]
+    private let barWidth:  CGFloat = 2.5
+    private let minHeight: CGFloat = 2.5
+    private let maxHeight: CGFloat = 16
 
     var body: some View {
-        HStack(spacing: 1.5) {
-            ForEach(0..<Self.segmentCount, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(segmentColor(index: i))
-                    .frame(width: 3, height: 10)
+        HStack(alignment: .center, spacing: 2.5) {
+            ForEach(scales.indices, id: \.self) { i in
+                bar(scale: scales[i])
             }
         }
-        .frame(width: 44)
+        .frame(width: 16, height: maxHeight)
     }
 
-    private func segmentColor(index: Int) -> Color {
-        let threshold = Float(index) / Float(Self.segmentCount - 1)
-        guard level > threshold else { return .white.opacity(0.18) }
-        if threshold < 0.60 { return .green.opacity(0.85)  }
-        if threshold < 0.82 { return .yellow.opacity(0.85) }
-        return .red.opacity(0.9)
+    private func bar(scale: Double) -> some View {
+        let h = minHeight + max(0, CGFloat(level)) * (maxHeight - minHeight) * scale
+        return RoundedRectangle(cornerRadius: 1.5)
+            .fill(Color.white.opacity(0.85))
+            .frame(width: barWidth, height: h)
+            .animation(.interpolatingSpring(stiffness: 300, damping: 20), value: level)
     }
 }
 
 #Preview {
-    VStack(spacing: 12) {
+    HStack(spacing: 20) {
         VUMeterView(level: 0.0)
-        VUMeterView(level: 0.35)
-        VUMeterView(level: 0.65)
-        VUMeterView(level: 0.9)
+        VUMeterView(level: 0.3)
+        VUMeterView(level: 0.7)
         VUMeterView(level: 1.0)
     }
-    .padding(20)
-    .background(.black)
+    .padding(24)
+    .background(Color(white: 0.12))
 }
