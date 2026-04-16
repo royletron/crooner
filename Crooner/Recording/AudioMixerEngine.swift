@@ -93,11 +93,16 @@ final class AudioMixerEngine {
         let (stream, continuation) = AsyncStream.makeStream(of: AVAudioPCMBuffer.self)
         lock.withLock { self.continuation = continuation }
 
+        // Silence the hardware output so the recording mix never plays back
+        // through speakers or headphones.  The tap below captures everything
+        // before the output stage, so recorded audio is unaffected.
+        engine.mainMixerNode.outputVolume = 0
+
         // Install tap after connecting but before starting.
         let tapFormat = engine.mainMixerNode.outputFormat(forBus: 0)
         engine.mainMixerNode.installTap(onBus: 0, bufferSize: 4_096, format: tapFormat) { [weak self] buffer, _ in
             guard let self else { return }
-            lock.withLock { self.continuation?.yield(buffer) }
+            lock.withLock { _ = self.continuation?.yield(buffer) }
         }
 
         startLevelMonitoring()
