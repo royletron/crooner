@@ -1,6 +1,7 @@
 # Xcode
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
+**/xcuserdata/
 *.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 build/
 DerivedData/
