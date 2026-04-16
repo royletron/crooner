@@ -68,6 +68,14 @@ final class AudioMixerEngine {
         interleaved: false
     )!
 
+    // MARK: - Level monitoring
+
+    /// Called on the main thread with a normalised 0–1 mic level.
+    var micLevelHandler: ((Float) -> Void)?
+    /// Smoothed level — only touched from the audio work-queue tap callback.
+    private var smoothedLevel: Float = 0
+    private var isMonitoringLevel  = false
+
     // MARK: - Stream state
 
     private var continuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
@@ -92,10 +100,13 @@ final class AudioMixerEngine {
             lock.withLock { self.continuation?.yield(buffer) }
         }
 
+        startLevelMonitoring()
+
         do {
             try engine.start()
         } catch {
             engine.mainMixerNode.removeTap(onBus: 0)
+            if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
             lock.withLock { self.continuation?.finish(); self.continuation = nil }
             throw AudioMixerError.engineStartFailed(error)
         }
@@ -107,6 +118,8 @@ final class AudioMixerEngine {
     /// Stop the engine and finish the output stream.
     func stop() {
         engine.mainMixerNode.removeTap(onBus: 0)
+        if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
+        smoothedLevel = 0
         sysAudioPlayer.stop()
         engine.stop()
         lock.withLock {
@@ -142,6 +155,40 @@ final class AudioMixerEngine {
         guard let i = sources.firstIndex(where: { $0.type == type }) else { return }
         sources[i].enabled = enabled
         mixerNode(for: type).outputVolume = enabled ? sources[i].volume : 0
+    }
+
+    // MARK: - Level monitoring
+
+    /// Installs a lightweight tap on the mic mixer to compute RMS power,
+    /// convert to a normalised 0–1 value (–60 dB … 0 dB), and push it to
+    /// `micLevelHandler` on the main thread with a fast-attack / slow-decay
+    /// envelope so the needle moves smoothly.
+    private func startLevelMonitoring() {
+        let format = micMixer.outputFormat(forBus: 0)
+        guard format.sampleRate > 0 else { return }
+
+        micMixer.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self] buffer, _ in
+            guard let self,
+                  let data = buffer.floatChannelData,
+                  buffer.frameLength > 0 else { return }
+
+            let frameCount = Int(buffer.frameLength)
+            var sum: Float = 0
+            for i in 0..<frameCount { sum += data[0][i] * data[0][i] }
+            let rms  = sqrt(sum / Float(frameCount))
+
+            // Convert RMS → dB, then normalise –60…0 dB to 0…1.
+            let db         = 20.0 * log10(max(rms, 1e-7))
+            let normalised = max(0, min(1, Float((db + 60.0) / 60.0)))
+
+            // Fast attack, slow decay (~0.7 s full fall at 44 kHz / 1024 frames).
+            let decayed = max(normalised, self.smoothedLevel * 0.88)
+            self.smoothedLevel = decayed
+
+            let level = decayed
+            DispatchQueue.main.async { [weak self] in self?.micLevelHandler?(level) }
+        }
+        isMonitoringLevel = true
     }
 
     // MARK: - Graph construction
