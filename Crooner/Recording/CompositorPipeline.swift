@@ -1,0 +1,267 @@
+import CoreImage
+import CoreVideo
+import ScreenCaptureKit
+
+// MARK: - Compositor
+
+/// Merges screen-capture frames and webcam frames into a single composited
+/// pixel-buffer stream.
+///
+/// Usage:
+/// ```swift
+/// let compositor = CompositorPipeline()
+/// await compositor.configure(bubbleEnabled: true, bubbleSize: .medium, bubbleCorner: .bottomRight)
+/// let frames = await compositor.start(screenStream: ..., webcamStream: ..., outputSize: ...)
+/// for await (buffer, time) in frames { /* encode */ }
+/// await compositor.stop()
+/// ```
+///
+/// The compositor is an `actor` so its state is automatically serialised across
+/// the two concurrent frame-consuming tasks.  `ciContext` is `nonisolated` because
+/// `CIContext` is thread-safe internally and doesn't need to hold the actor lock.
+actor CompositorPipeline {
+
+    // MARK: - Configuration
+
+    private var bubbleEnabled: Bool        = true
+    private var bubbleSize:    BubbleSize   = .medium
+    private var bubbleCorner:  BubbleCorner = .bottomRight
+
+    // MARK: - Internals
+
+    /// Metal-backed context reused for every frame.  Creating a new context per
+    /// frame is expensive; reuse is the primary performance requirement (CROON-018).
+    /// Device-RGB working color space avoids gamma conversions when rendering
+    /// BGRA pixel buffers.  Using a display/sRGB working space causes CoreImage
+    /// to apply gamma correction into the output buffer, producing dark video.
+    nonisolated let ciContext = CIContext(options: [
+        .useSoftwareRenderer: false,
+        .workingColorSpace: CGColorSpaceCreateDeviceRGB() as Any,
+    ])
+
+    private var pixelBufferPool:    CVPixelBufferPool?
+    private var latestWebcamBuffer: CVPixelBuffer?
+
+    private var webcamTask: Task<Void, Never>?
+    private var screenTask: Task<Void, Never>?
+    private var continuation: AsyncStream<(CVPixelBuffer, CMTime)>.Continuation?
+
+    // MARK: - Per-frame reusable objects (CROON-018)
+
+    /// Circular mask, invalidated only when bubble diameter changes.
+    private var cachedMask: (diameter: CGFloat, image: CIImage)?
+
+    /// Long-lived CIFilter instances — inputs are updated each frame instead of
+    /// allocating new filter objects at 30–60 fps.
+    private let blendFilter     = CIFilter(name: "CIBlendWithMask")
+    private let compositeFilter = CIFilter(name: "CISourceAtopCompositing")
+
+    // MARK: - Public API
+
+    /// Update bubble options at any point — safe to call while the compositor is running.
+    func configure(bubbleEnabled: Bool, bubbleSize: BubbleSize, bubbleCorner: BubbleCorner) {
+        self.bubbleEnabled = bubbleEnabled
+        self.bubbleSize    = bubbleSize
+        self.bubbleCorner  = bubbleCorner
+    }
+
+    /// Start compositing.
+    ///
+    /// - Parameters:
+    ///   - screenStream: Frame stream from `ScreenCaptureEngine`.
+    ///   - webcamStream: Frame stream from `WebcamCaptureEngine`.
+    ///   - outputSize:   Pixel dimensions of the output (from `CaptureSource.outputSize`).
+    /// - Returns: An async stream of `(composited CVPixelBuffer, presentation CMTime)` pairs
+    ///   at the same rate as `screenStream`.
+    func start(
+        screenStream: AsyncStream<CMSampleBuffer>,
+        webcamStream: AsyncStream<CMSampleBuffer>,
+        outputSize:   CGSize
+    ) -> AsyncStream<(CVPixelBuffer, CMTime)> {
+        makePixelBufferPool(size: outputSize)
+
+        let (stream, continuation) = AsyncStream<(CVPixelBuffer, CMTime)>.makeStream()
+        self.continuation = continuation
+
+        // Webcam: keep the latest frame in memory; don't drive the output rate.
+        webcamTask = Task { [weak self] in
+            for await buffer in webcamStream {
+                guard !Task.isCancelled, let self else { break }
+                await self.cacheWebcam(CMSampleBufferGetImageBuffer(buffer))
+            }
+        }
+
+        // Screen frames drive the output clock.
+        screenTask = Task { [weak self] in
+            for await sample in screenStream {
+                guard !Task.isCancelled, let self else { break }
+                guard let pixelBuffer = CMSampleBufferGetImageBuffer(sample) else { continue }
+                let time   = CMSampleBufferGetPresentationTimeStamp(sample)
+                let output = await self.composite(screen: pixelBuffer, outputSize: outputSize)
+                await self.continuation?.yield((output, time))
+            }
+            await self?.continuation?.finish()
+        }
+
+        return stream
+    }
+
+    /// Stop compositing and release resources.
+    func stop() {
+        webcamTask?.cancel()
+        screenTask?.cancel()
+        webcamTask         = nil
+        screenTask         = nil
+        continuation?.finish()
+        continuation       = nil
+        pixelBufferPool    = nil
+        latestWebcamBuffer = nil
+    }
+
+    // MARK: - Private helpers
+
+    private func cacheWebcam(_ buffer: CVPixelBuffer?) {
+        latestWebcamBuffer = buffer
+    }
+
+    private func allocateOutputBuffer() -> CVPixelBuffer? {
+        guard let pool = pixelBufferPool else { return nil }
+        var buffer: CVPixelBuffer?
+        CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &buffer)
+        return buffer
+    }
+
+    private func makePixelBufferPool(size: CGSize) {
+        let poolAttrs: [String: Any] = [
+            kCVPixelBufferPoolMinimumBufferCountKey as String: 3
+        ]
+        let bufferAttrs: [String: Any] = [
+            kCVPixelBufferWidthKey              as String: Int(size.width),
+            kCVPixelBufferHeightKey             as String: Int(size.height),
+            kCVPixelBufferPixelFormatTypeKey    as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferMetalCompatibilityKey as String: true
+        ]
+        CVPixelBufferPoolCreate(
+            kCFAllocatorDefault,
+            poolAttrs   as CFDictionary,
+            bufferAttrs as CFDictionary,
+            &pixelBufferPool
+        )
+    }
+
+    // MARK: - Mask cache
+
+    /// Returns a circular white-on-clear CIImage of the given diameter.
+    /// The result is cached and reused across frames; it is only regenerated
+    /// when the bubble size changes (CROON-018).
+    private func circularMask(diameter: CGFloat) -> CIImage? {
+        if let cached = cachedMask, cached.diameter == diameter {
+            return cached.image
+        }
+        let radius = diameter / 2
+        guard
+            let filter = CIFilter(name: "CIRadialGradient", parameters: [
+                "inputCenter":  CIVector(x: radius, y: radius),
+                "inputRadius0": Float(radius - 0.5),
+                "inputRadius1": Float(radius),
+                "inputColor0":  CIColor.white,
+                "inputColor1":  CIColor.clear
+            ]),
+            let image = filter.outputImage?.cropped(to: CGRect(x: 0, y: 0,
+                                                               width: diameter,
+                                                               height: diameter))
+        else { return nil }
+        cachedMask = (diameter, image)
+        return image
+    }
+
+    // MARK: - Compositing
+
+    /// Returns a composited pixel buffer for one screen frame.
+    ///
+    /// Steps:
+    ///   1. Square-crop + scale webcam to bubble diameter
+    ///   2. Mirror horizontally (selfie cameras produce a flipped image)
+    ///   3. Apply circular mask via CIRadialGradient + CIBlendWithMask
+    ///   4. Translate bubble to the correct corner of the output frame
+    ///   5. CISourceAtopCompositing over the screen frame
+    ///   6. Render into a CVPixelBufferPool buffer (avoids per-frame allocation)
+    private func composite(screen: CVPixelBuffer, outputSize: CGSize) -> CVPixelBuffer {
+        // Passthrough when bubble is off or no webcam frame has arrived yet.
+        guard bubbleEnabled, let webcam = latestWebcamBuffer else {
+            guard let output = allocateOutputBuffer() else { return screen }
+            ciContext.render(
+                CIImage(cvPixelBuffer: screen),
+                to: output,
+                bounds: CGRect(origin: .zero, size: outputSize),
+                colorSpace: CGColorSpaceCreateDeviceRGB()
+            )
+            return output
+        }
+
+        let diameter = bubbleSize.diameter
+        let radius   = diameter / 2
+
+        // — Step 1 & 2: square-crop, scale, mirror ————————————————————————————
+
+        let webcamCI  = CIImage(cvPixelBuffer: webcam)
+        let srcExtent = webcamCI.extent
+        let side      = min(srcExtent.width, srcExtent.height)
+        let cropRect  = CGRect(
+            x: (srcExtent.width  - side) / 2,
+            y: (srcExtent.height - side) / 2,
+            width: side, height: side
+        )
+        let scale = diameter / side
+
+        let scaledWebcam = webcamCI
+            .cropped(to: cropRect)
+            .transformed(by: CGAffineTransform(translationX: -cropRect.minX, y: -cropRect.minY))
+            .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            .transformed(by: CGAffineTransform(scaleX: -1, y: 1)   // mirror
+                .translatedBy(x: -diameter, y: 0))
+
+        // — Step 3: circular mask (cached per diameter) ———————————————————————
+
+        let maskCI = circularMask(diameter: diameter)
+        guard let maskCI else { return screen }
+
+        blendFilter?.setValue(scaledWebcam,    forKey: kCIInputImageKey)
+        blendFilter?.setValue(maskCI,          forKey: kCIInputMaskImageKey)
+        blendFilter?.setValue(CIImage.empty(), forKey: kCIInputBackgroundImageKey)
+        guard let maskedWebcam = blendFilter?.outputImage else { return screen }
+
+        // — Step 4: position in output frame ——————————————————————————————————
+        //
+        // BubbleCorner.position uses a top-left origin (y increases downward).
+        // CIImage uses a bottom-left origin (y increases upward).
+        // Conversion: ciY = outputSize.height − tlY
+        //
+        let inset    = radius + 8
+        let tlCenter = bubbleCorner.position(in: outputSize, inset: inset)
+        let ciOrigin = CGPoint(
+            x: tlCenter.x - radius,
+            y: outputSize.height - tlCenter.y - radius
+        )
+        let positionedBubble = maskedWebcam
+            .transformed(by: CGAffineTransform(translationX: ciOrigin.x, y: ciOrigin.y))
+
+        // — Step 5: composite bubble atop screen ——————————————————————————————
+
+        let screenCI = CIImage(cvPixelBuffer: screen)
+        compositeFilter?.setValue(positionedBubble, forKey: kCIInputImageKey)
+        compositeFilter?.setValue(screenCI,         forKey: kCIInputBackgroundImageKey)
+        guard let compositeCI = compositeFilter?.outputImage else { return screen }
+
+        // — Step 6: render to pooled buffer ———————————————————————————————————
+
+        guard let output = allocateOutputBuffer() else { return screen }
+        ciContext.render(
+            compositeCI,
+            to: output,
+            bounds: CGRect(origin: .zero, size: outputSize),
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
+        return output
+    }
+}

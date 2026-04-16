@@ -1,0 +1,461 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		10ADA03C1FB83ECB1CCC7C0B /* CaptureSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1361C78F34E8A1987AB4E805 /* CaptureSource.swift */; };
+		14EE341E4000014E2608AC3F /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4883495D6B67A91D7FA5E6BA /* AVFoundation.framework */; };
+		277F686818949D3E1AF0B867 /* WebcamBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47175FBCD746928364FF6DC9 /* WebcamBubbleView.swift */; };
+		2A70ABD5CC442C0BE6FE8A09 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A7FAF079D93B5A9D9E51BC0 /* MenuBarView.swift */; };
+		34E0FCE5CAE0C2D4143D4834 /* CroonerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D146A86AB5CB4C86AE5A10C6 /* CroonerApp.swift */; };
+		3665A1367DB72ABF308BC32E /* BubblePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF971F6C12D177CAA5712F1 /* BubblePanelController.swift */; };
+		37707BD196AB8B40F24EDD88 /* AppStorageKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4710B8C7B47959C6FD96FA71 /* AppStorageKey.swift */; };
+		40253D5718B517EC5F87EC29 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DE3EC99ED2450D0D5A0B94 /* PermissionManager.swift */; };
+		51C2CBE0A23A5E03BCDD2D7D /* BubbleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDBCF35AA31CFC9C7F6B4891 /* BubbleSettings.swift */; };
+		56FEB5BB421DBF717D44230F /* ScreenCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD66DD9FFA6F129BFE7D302 /* ScreenCaptureEngine.swift */; };
+		585F560082433CED4AC248F9 /* RecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE2D16976A560FA4CEE686D /* RecordingSession.swift */; };
+		63A056314B83297A95DF89CB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C087E7AF3E68A8F423AB49 /* SettingsView.swift */; };
+		6651DB75374001B350254902 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FFB681CC523E0FEA3D7A0002 /* CoreVideo.framework */; };
+		778A7D08D266C5EDA033A4F3 /* ControlBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71C19308533E35338E2B7365 /* ControlBarView.swift */; };
+		863DEAED47593B6EB599C289 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3441D84D29AF255F5AA998CF /* ContentView.swift */; };
+		895FEBE09B77E98D8CE008E4 /* ControlBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574D080F346C915C6BA144D4 /* ControlBarController.swift */; };
+		89E2C50D14B0FC717D16797D /* WebcamCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9506D38CB4FEEF58D687FE /* WebcamCaptureEngine.swift */; };
+		9227227C7A56FD395AC426AD /* SCShareableContent+Fetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0656BCBF2331082387B9A2D5 /* SCShareableContent+Fetch.swift */; };
+		93C1BA4744F5FC4B5B4692C6 /* RecordingSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9ADD865DDF6C2FCDE3EFA21 /* RecordingSettings.swift */; };
+		99858BB1214FEBF664E97636 /* FileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50BA6A728879DC6CEACDB58 /* FileWriter.swift */; };
+		B3D2E05273621A108C29D1F8 /* SourcePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B253C247427BE7F168066EC /* SourcePickerView.swift */; };
+		BE0AEF39FAD31955180C929E /* AreaSelectorOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FECA73E780B46326C052C1BD /* AreaSelectorOverlay.swift */; };
+		C78A85198CFE3E9C2E786A5C /* VideoToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FDF9A850BC1933189BEF9EF7 /* VideoToolbox.framework */; };
+		CCE3EEAD845B9A0B2AAAAAB0 /* PermissionBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA295A7701F120776C187C2D /* PermissionBannerView.swift */; };
+		CDEC51D80EA7FB1EFD5F5BCD /* AudioMixerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B191BBEC674367C3FF15F023 /* AudioMixerEngine.swift */; };
+		D3A5252116D793374CA2B6AD /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 468DB97654053FFA9C06F01F /* AppDelegate.swift */; };
+		EBB2A3DA9188AD492D2C87E7 /* CompositorPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 561BA5ACDBE51C1C764B9473 /* CompositorPipeline.swift */; };
+		F279EA42361DB9E27225552E /* ScreenCaptureKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C1B8C8BBE6888D1861875386 /* ScreenCaptureKit.framework */; };
+		F44ACB4D711AF0E325E04E4F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6F15A947449224B64565BA1D /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0656BCBF2331082387B9A2D5 /* SCShareableContent+Fetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SCShareableContent+Fetch.swift"; sourceTree = "<group>"; };
+		1361C78F34E8A1987AB4E805 /* CaptureSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSource.swift; sourceTree = "<group>"; };
+		24CCBA184E1D94A0110355B8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		2A7FAF079D93B5A9D9E51BC0 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		3441D84D29AF255F5AA998CF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		468DB97654053FFA9C06F01F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		4710B8C7B47959C6FD96FA71 /* AppStorageKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStorageKey.swift; sourceTree = "<group>"; };
+		47175FBCD746928364FF6DC9 /* WebcamBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamBubbleView.swift; sourceTree = "<group>"; };
+		4883495D6B67A91D7FA5E6BA /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		561BA5ACDBE51C1C764B9473 /* CompositorPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositorPipeline.swift; sourceTree = "<group>"; };
+		574D080F346C915C6BA144D4 /* ControlBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlBarController.swift; sourceTree = "<group>"; };
+		6F15A947449224B64565BA1D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		70DE3EC99ED2450D0D5A0B94 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
+		71C19308533E35338E2B7365 /* ControlBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlBarView.swift; sourceTree = "<group>"; };
+		894636DA025D54BF2CD417EC /* Crooner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Crooner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8A9506D38CB4FEEF58D687FE /* WebcamCaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamCaptureEngine.swift; sourceTree = "<group>"; };
+		8AE2D16976A560FA4CEE686D /* RecordingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSession.swift; sourceTree = "<group>"; };
+		8B253C247427BE7F168066EC /* SourcePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePickerView.swift; sourceTree = "<group>"; };
+		9255A9F5939C721D3EF05807 /* Crooner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Crooner.entitlements; sourceTree = "<group>"; };
+		A50BA6A728879DC6CEACDB58 /* FileWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWriter.swift; sourceTree = "<group>"; };
+		AFD66DD9FFA6F129BFE7D302 /* ScreenCaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureEngine.swift; sourceTree = "<group>"; };
+		B191BBEC674367C3FF15F023 /* AudioMixerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMixerEngine.swift; sourceTree = "<group>"; };
+		B9C087E7AF3E68A8F423AB49 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		BDBCF35AA31CFC9C7F6B4891 /* BubbleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubbleSettings.swift; sourceTree = "<group>"; };
+		C1B8C8BBE6888D1861875386 /* ScreenCaptureKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScreenCaptureKit.framework; path = System/Library/Frameworks/ScreenCaptureKit.framework; sourceTree = SDKROOT; };
+		C9ADD865DDF6C2FCDE3EFA21 /* RecordingSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSettings.swift; sourceTree = "<group>"; };
+		D146A86AB5CB4C86AE5A10C6 /* CroonerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CroonerApp.swift; sourceTree = "<group>"; };
+		DA295A7701F120776C187C2D /* PermissionBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionBannerView.swift; sourceTree = "<group>"; };
+		DCF971F6C12D177CAA5712F1 /* BubblePanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubblePanelController.swift; sourceTree = "<group>"; };
+		FDF9A850BC1933189BEF9EF7 /* VideoToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoToolbox.framework; path = System/Library/Frameworks/VideoToolbox.framework; sourceTree = SDKROOT; };
+		FECA73E780B46326C052C1BD /* AreaSelectorOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AreaSelectorOverlay.swift; sourceTree = "<group>"; };
+		FFB681CC523E0FEA3D7A0002 /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		57DF33A0FD8C10D15535609A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F279EA42361DB9E27225552E /* ScreenCaptureKit.framework in Frameworks */,
+				14EE341E4000014E2608AC3F /* AVFoundation.framework in Frameworks */,
+				C78A85198CFE3E9C2E786A5C /* VideoToolbox.framework in Frameworks */,
+				6651DB75374001B350254902 /* CoreVideo.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		14627EFCF3D61042CF2D53FE /* Crooner */ = {
+			isa = PBXGroup;
+			children = (
+				468DB97654053FFA9C06F01F /* AppDelegate.swift */,
+				6F15A947449224B64565BA1D /* Assets.xcassets */,
+				3441D84D29AF255F5AA998CF /* ContentView.swift */,
+				9255A9F5939C721D3EF05807 /* Crooner.entitlements */,
+				D146A86AB5CB4C86AE5A10C6 /* CroonerApp.swift */,
+				24CCBA184E1D94A0110355B8 /* Info.plist */,
+				2A7FAF079D93B5A9D9E51BC0 /* MenuBarView.swift */,
+				DA295A7701F120776C187C2D /* PermissionBannerView.swift */,
+				70DE3EC99ED2450D0D5A0B94 /* PermissionManager.swift */,
+				DA71A8952114A63FB913C1FF /* Models */,
+				5BE8793DBCE6F6A4008F6D0C /* Recording */,
+				481C0127B1E49170F54C896F /* UI */,
+			);
+			path = Crooner;
+			sourceTree = "<group>";
+		};
+		481C0127B1E49170F54C896F /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				FECA73E780B46326C052C1BD /* AreaSelectorOverlay.swift */,
+				DCF971F6C12D177CAA5712F1 /* BubblePanelController.swift */,
+				574D080F346C915C6BA144D4 /* ControlBarController.swift */,
+				71C19308533E35338E2B7365 /* ControlBarView.swift */,
+				B9C087E7AF3E68A8F423AB49 /* SettingsView.swift */,
+				8B253C247427BE7F168066EC /* SourcePickerView.swift */,
+				47175FBCD746928364FF6DC9 /* WebcamBubbleView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		5BE8793DBCE6F6A4008F6D0C /* Recording */ = {
+			isa = PBXGroup;
+			children = (
+				B191BBEC674367C3FF15F023 /* AudioMixerEngine.swift */,
+				561BA5ACDBE51C1C764B9473 /* CompositorPipeline.swift */,
+				A50BA6A728879DC6CEACDB58 /* FileWriter.swift */,
+				8AE2D16976A560FA4CEE686D /* RecordingSession.swift */,
+				AFD66DD9FFA6F129BFE7D302 /* ScreenCaptureEngine.swift */,
+				0656BCBF2331082387B9A2D5 /* SCShareableContent+Fetch.swift */,
+				8A9506D38CB4FEEF58D687FE /* WebcamCaptureEngine.swift */,
+			);
+			path = Recording;
+			sourceTree = "<group>";
+		};
+		726CDF70E96D765764149CFB = {
+			isa = PBXGroup;
+			children = (
+				14627EFCF3D61042CF2D53FE /* Crooner */,
+				FE7EDEC7312803B0E46E7B88 /* Frameworks */,
+				832A5A70646B0E46E1B7E597 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		832A5A70646B0E46E1B7E597 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				894636DA025D54BF2CD417EC /* Crooner.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DA71A8952114A63FB913C1FF /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				4710B8C7B47959C6FD96FA71 /* AppStorageKey.swift */,
+				BDBCF35AA31CFC9C7F6B4891 /* BubbleSettings.swift */,
+				1361C78F34E8A1987AB4E805 /* CaptureSource.swift */,
+				C9ADD865DDF6C2FCDE3EFA21 /* RecordingSettings.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		FE7EDEC7312803B0E46E7B88 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4883495D6B67A91D7FA5E6BA /* AVFoundation.framework */,
+				FFB681CC523E0FEA3D7A0002 /* CoreVideo.framework */,
+				C1B8C8BBE6888D1861875386 /* ScreenCaptureKit.framework */,
+				FDF9A850BC1933189BEF9EF7 /* VideoToolbox.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		41BDFDBB68C70856CEC23D18 /* Crooner */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0D7962F9F32428D3EFEC3A7 /* Build configuration list for PBXNativeTarget "Crooner" */;
+			buildPhases = (
+				881E52BD136754007A72D162 /* Sources */,
+				02C0D5E6E716AA47DBDC5A28 /* Resources */,
+				57DF33A0FD8C10D15535609A /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Crooner;
+			packageProductDependencies = (
+			);
+			productName = Crooner;
+			productReference = 894636DA025D54BF2CD417EC /* Crooner.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4667B1624B10FE42ADE0C54D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					41BDFDBB68C70856CEC23D18 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = E321881F635A3750890C5533 /* Build configuration list for PBXProject "Crooner" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 726CDF70E96D765764149CFB;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 832A5A70646B0E46E1B7E597 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				41BDFDBB68C70856CEC23D18 /* Crooner */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		02C0D5E6E716AA47DBDC5A28 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F44ACB4D711AF0E325E04E4F /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		881E52BD136754007A72D162 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D3A5252116D793374CA2B6AD /* AppDelegate.swift in Sources */,
+				37707BD196AB8B40F24EDD88 /* AppStorageKey.swift in Sources */,
+				BE0AEF39FAD31955180C929E /* AreaSelectorOverlay.swift in Sources */,
+				CDEC51D80EA7FB1EFD5F5BCD /* AudioMixerEngine.swift in Sources */,
+				3665A1367DB72ABF308BC32E /* BubblePanelController.swift in Sources */,
+				51C2CBE0A23A5E03BCDD2D7D /* BubbleSettings.swift in Sources */,
+				10ADA03C1FB83ECB1CCC7C0B /* CaptureSource.swift in Sources */,
+				EBB2A3DA9188AD492D2C87E7 /* CompositorPipeline.swift in Sources */,
+				863DEAED47593B6EB599C289 /* ContentView.swift in Sources */,
+				895FEBE09B77E98D8CE008E4 /* ControlBarController.swift in Sources */,
+				778A7D08D266C5EDA033A4F3 /* ControlBarView.swift in Sources */,
+				34E0FCE5CAE0C2D4143D4834 /* CroonerApp.swift in Sources */,
+				99858BB1214FEBF664E97636 /* FileWriter.swift in Sources */,
+				2A70ABD5CC442C0BE6FE8A09 /* MenuBarView.swift in Sources */,
+				CCE3EEAD845B9A0B2AAAAAB0 /* PermissionBannerView.swift in Sources */,
+				40253D5718B517EC5F87EC29 /* PermissionManager.swift in Sources */,
+				585F560082433CED4AC248F9 /* RecordingSession.swift in Sources */,
+				93C1BA4744F5FC4B5B4692C6 /* RecordingSettings.swift in Sources */,
+				9227227C7A56FD395AC426AD /* SCShareableContent+Fetch.swift in Sources */,
+				56FEB5BB421DBF717D44230F /* ScreenCaptureEngine.swift in Sources */,
+				63A056314B83297A95DF89CB /* SettingsView.swift in Sources */,
+				B3D2E05273621A108C29D1F8 /* SourcePickerView.swift in Sources */,
+				277F686818949D3E1AF0B867 /* WebcamBubbleView.swift in Sources */,
+				89E2C50D14B0FC717D16797D /* WebcamCaptureEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		4FC57FE51105A0BD424A9798 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A5A888EFF1350775833C3FC3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Crooner/Crooner.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Crooner/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.crooner.app;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		C78035BE9F6A47FA6855E8C6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Crooner/Crooner.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Crooner/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.crooner.app;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		FB4E5E087706FD37DC3A41A4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C0D7962F9F32428D3EFEC3A7 /* Build configuration list for PBXNativeTarget "Crooner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A5A888EFF1350775833C3FC3 /* Debug */,
+				C78035BE9F6A47FA6855E8C6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E321881F635A3750890C5533 /* Build configuration list for PBXProject "Crooner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4FC57FE51105A0BD424A9798 /* Debug */,
+				FB4E5E087706FD37DC3A41A4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4667B1624B10FE42ADE0C54D /* Project object */;
+}

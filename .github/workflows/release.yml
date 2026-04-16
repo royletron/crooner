@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: brew install xcodegen create-dmg
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Import signing certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+
+          echo "$CERTIFICATE_BASE64" | base64 --decode > /tmp/certificate.p12
+          security import /tmp/certificate.p12 \
+            -k build.keychain \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm /tmp/certificate.p12
+
+      - name: Inject team ID into ExportOptions.plist
+        run: |
+          /usr/libexec/PlistBuddy -c \
+            "Set :teamID ${{ secrets.APPLE_TEAM_ID }}" ExportOptions.plist
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -scheme Crooner \
+            -configuration Release \
+            -archivePath build/Crooner.xcarchive \
+            -allowProvisioningUpdates
+
+      - name: Export (Developer ID)
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/Crooner.xcarchive \
+            -exportPath   build/export \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Notarize app
+        run: |
+          xcrun notarytool submit build/export/Crooner.app \
+            --apple-id  "${{ secrets.APPLE_ID }}" \
+            --password  "${{ secrets.APPLE_APP_PASSWORD }}" \
+            --team-id   "${{ secrets.APPLE_TEAM_ID }}" \
+            --wait
+          xcrun stapler staple build/export/Crooner.app
+
+      - name: Extract version from tag
+        id: version
+        run: echo "value=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build DMG
+        run: |
+          create-dmg \
+            --volname "Crooner" \
+            --window-pos  200 120 \
+            --window-size 600 400 \
+            --icon-size 128 \
+            --icon "Crooner.app" 150 185 \
+            --app-drop-link 450 185 \
+            "build/Crooner-${{ steps.version.outputs.value }}.dmg" \
+            "build/export/"
+
+      - name: Notarize DMG
+        run: |
+          xcrun notarytool submit \
+            "build/Crooner-${{ steps.version.outputs.value }}.dmg" \
+            --apple-id  "${{ secrets.APPLE_ID }}" \
+            --password  "${{ secrets.APPLE_APP_PASSWORD }}" \
+            --team-id   "${{ secrets.APPLE_TEAM_ID }}" \
+            --wait
+          xcrun stapler staple \
+            "build/Crooner-${{ steps.version.outputs.value }}.dmg"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Crooner-${{ steps.version.outputs.value }}.dmg
+          generate_release_notes: true

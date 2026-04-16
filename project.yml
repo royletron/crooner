@@ -1,0 +1,43 @@
+name: Crooner
+options:
+  bundleIdPrefix: com.crooner
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "15"
+  generateEmptyDirectories: true
+
+targets:
+  Crooner:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Crooner
+    info:
+      path: Crooner/Info.plist
+      properties:
+        LSUIElement: true
+        NSCameraUsageDescription: Crooner uses your camera to show a webcam bubble in your recordings.
+        NSMicrophoneUsageDescription: Crooner uses your microphone to record audio narration.
+        NSScreenCaptureUsageDescription: Crooner needs screen recording access to capture your screen.
+    entitlements:
+      path: Crooner/Crooner.entitlements
+      properties:
+        com.apple.security.device.camera: true
+        com.apple.security.device.microphone: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.crooner.app
+        SWIFT_VERSION: "5.9"
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+      configs:
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+          DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
+    dependencies:
+      - sdk: ScreenCaptureKit.framework
+      - sdk: AVFoundation.framework
+      - sdk: VideoToolbox.framework
+      - sdk: CoreVideo.framework
