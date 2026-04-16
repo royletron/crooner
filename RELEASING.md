@@ -43,6 +43,7 @@ These must be configured once under **Settings → Secrets → Actions**:
 | `APPLE_ID` | Apple ID email used for notarisation |
 | `APPLE_APP_PASSWORD` | App-specific password for notarisation |
 | `APPLE_TEAM_ID` | 10-character Apple Developer team identifier |
+| `SPARKLE_PRIVATE_KEY` | EdDSA private key for signing update archives (see below) |
 
 To encode your certificate:
 
@@ -51,6 +52,60 @@ base64 -i DeveloperIDApplication.p12 | pbcopy
 ```
 
 Paste the result directly into the secret — no newlines, no wrapping.
+
+---
+
+## One-time Sparkle key setup
+
+Sparkle uses EdDSA (ed25519) to verify that update archives haven't been tampered
+with.  You need to generate a key pair **once**, store the private key as a secret,
+and embed the public key in the app.
+
+### 1 — Download the Sparkle CLI
+
+```bash
+SPARKLE_VER="2.7.5"
+curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VER}/Sparkle-${SPARKLE_VER}.tar.xz" \
+  | tar xJ --strip-components=0 -C /tmp
+```
+
+### 2 — Generate the key pair
+
+```bash
+/tmp/bin/generate_keys
+```
+
+The tool will:
+- Store the **private** key in your macOS keychain under the account `ed25519`.
+- Print the **public** key as a Base64 string — copy it.
+
+### 3 — Export the private key for CI
+
+`generate_keys` stores the private key in your macOS Keychain under the label
+`ed25519`.  Retrieve it with:
+
+```bash
+security find-generic-password -a "ed25519" -s "ed25519" -w | pbcopy
+```
+
+Paste the result into a new repository secret named **`SPARKLE_PRIVATE_KEY`**.
+
+> If the above `security` command returns nothing, `generate_keys` may have used a
+> different service name.  Check **Keychain Access → login → Passwords** and look
+> for an entry that contains "sparkle" or "ed25519".
+
+### 4 — Embed the public key in the app
+
+Open `project.yml` and replace the `SUPublicEDKey` placeholder with the public
+key you copied in step 2:
+
+```yaml
+        SUPublicEDKey: "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789..."
+```
+
+Run `xcodegen generate` to regenerate the Xcode project.
+
+> **Never commit the private key.**  Only the public key lives in the repository.
 
 ---
 

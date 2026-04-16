@@ -14,6 +14,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow:          NSWindow?
     private var subscriptions = Set<AnyCancellable>()
 
+    // Starts Sparkle on first access; lazy so the check happens after launch.
+    private lazy var updaterController = UpdaterController()
+
     // MARK: - Menu bar animation
     private static let animFrameCount = 12
     private var reelFrames: [NSImage] = []
@@ -29,6 +32,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         loadReelFrames()
         bubblePanelController = BubblePanelController(session: session)
         controlBarController  = ControlBarController(session: session)
+
+        // Accessing the lazy var here starts Sparkle and queues the launch check.
+        _ = updaterController
 
         // Drive menu bar icon state from session state.
         session.$state
@@ -138,7 +144,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func openSettings() {
         if settingsWindow == nil {
             let controller = NSHostingController(
-                rootView: SettingsView().environmentObject(session)
+                rootView: SettingsView()
+                    .environmentObject(session)
+                    .environmentObject(updaterController)
             )
             let window = NSWindow(contentViewController: controller)
             window.title                = "Crooner Settings"

@@ -169,6 +169,7 @@ private struct WebcamTab: View {
 private struct GeneralTab: View {
     @AppStorage(AppStorageKey.countdown)     private var countdown    = 3
     @AppStorage(AppStorageKey.launchAtLogin) private var launchAtLogin = false
+    @EnvironmentObject private var updater: UpdaterController
 
     var body: some View {
         Form {
@@ -194,6 +195,13 @@ private struct GeneralTab: View {
                             launchAtLogin = !enabled
                         }
                     }
+            }
+
+            Section {
+                Button("Check for Updates…") {
+                    updater.checkForUpdates()
+                }
+                .disabled(!updater.canCheckForUpdates)
             }
         }
         .formStyle(.grouped)

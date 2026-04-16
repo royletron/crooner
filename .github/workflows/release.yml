@@ -87,6 +87,16 @@ jobs:
       - name: Install tools
         run: brew install xcodegen create-dmg
 
+      - name: Install Sparkle CLI tools
+        run: |
+          SPARKLE_VER="2.7.5"
+          curl -fsSL \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VER}/Sparkle-${SPARKLE_VER}.tar.xz" \
+            -o /tmp/sparkle.tar.xz
+          mkdir -p /tmp/sparkle
+          tar xf /tmp/sparkle.tar.xz -C /tmp/sparkle
+          echo "/tmp/sparkle/bin" >> "$GITHUB_PATH"
+
       - name: Generate Xcode project
         run: xcodegen generate
 
@@ -130,6 +140,8 @@ jobs:
             -scheme Crooner \
             -configuration Release \
             -archivePath build/Crooner.xcarchive \
+            MARKETING_VERSION="${{ steps.version.outputs.value }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.version.outputs.value }}" \
             -allowProvisioningUpdates
 
       - name: Export (Developer ID)
@@ -151,6 +163,8 @@ jobs:
 
       - name: Build DMG
         run: |
+          mkdir -p build/dmg-staging
+          cp -R build/export/Crooner.app build/dmg-staging/
           create-dmg \
             --volname "Crooner" \
             --window-pos  200 120 \
@@ -159,7 +173,7 @@ jobs:
             --icon "Crooner.app" 150 185 \
             --app-drop-link 450 185 \
             "build/Crooner-${{ steps.version.outputs.value }}.dmg" \
-            "build/export/"
+            "build/dmg-staging/"
 
       - name: Notarize DMG
         run: |
@@ -178,3 +192,76 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           files: build/Crooner-${{ steps.version.outputs.value }}.dmg
           generate_release_notes: true
+
+      # ── Appcast ────────────────────────────────────────────────────────
+
+      - name: Update appcast.xml
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          APP_VERSION: ${{ steps.version.outputs.value }}
+          APP_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          DMG="build/Crooner-${APP_VERSION}.dmg"
+
+          # Sign the DMG with the EdDSA private key.
+          echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_key
+          SPARKLE_SIG=$(sign_update "$DMG" -f /tmp/sparkle_key)
+          rm /tmp/sparkle_key
+
+          SPARKLE_SIZE=$(wc -c < "$DMG" | tr -d ' ')
+          SPARKLE_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
+          SPARKLE_URL="https://github.com/royletron/crooner/releases/download/${APP_TAG}/Crooner-${APP_VERSION}.dmg"
+
+          SPARKLE_SIG="$SPARKLE_SIG" \
+          SPARKLE_SIZE="$SPARKLE_SIZE" \
+          SPARKLE_DATE="$SPARKLE_DATE" \
+          SPARKLE_URL="$SPARKLE_URL" \
+          python3 << 'PYEOF'
+import xml.etree.ElementTree as ET
+import os
+
+version  = os.environ["APP_VERSION"]
+sig      = os.environ["SPARKLE_SIG"]
+size     = int(os.environ["SPARKLE_SIZE"])
+url      = os.environ["SPARKLE_URL"]
+date     = os.environ["SPARKLE_DATE"]
+
+SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+ET.register_namespace("sparkle", SPARKLE_NS)
+ET.register_namespace("dc", "http://purl.org/dc/elements/1.1/")
+
+tree    = ET.parse("appcast.xml")
+root    = tree.getroot()
+channel = root.find("channel")
+
+item = ET.Element("item")
+ET.SubElement(item, "title").text = f"Version {version}"
+ET.SubElement(item, "pubDate").text = date
+ET.SubElement(item, f"{{{SPARKLE_NS}}}version").text = version
+ET.SubElement(item, f"{{{SPARKLE_NS}}}shortVersionString").text = version
+ET.SubElement(item, f"{{{SPARKLE_NS}}}minimumSystemVersion").text = "13.0"
+enc = ET.SubElement(item, "enclosure")
+enc.set("url", url)
+enc.set("type", "application/octet-stream")
+enc.set(f"{{{SPARKLE_NS}}}edSignature", sig)
+enc.set("length", str(size))
+
+# Newest item first so Sparkle picks it up immediately.
+first = channel.find("item")
+if first is not None:
+    channel.insert(list(channel).index(first), item)
+else:
+    channel.append(item)
+
+ET.indent(tree, space="  ")
+tree.write("appcast.xml", xml_declaration=True, encoding="UTF-8")
+print(f"appcast.xml updated for {version}")
+PYEOF
+
+      - name: Commit updated appcast
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "chore: update appcast for ${{ steps.version.outputs.tag }}"
+          git push origin HEAD:main
