@@ -11,6 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let session = RecordingSession()
     private var bubblePanelController:   BubblePanelController?
     private var controlBarController:    ControlBarController?
+    private var effectsOverlayController: EffectsOverlayController?
     private var settingsWindow:          NSWindow?
     private var subscriptions = Set<AnyCancellable>()
 
@@ -27,21 +28,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupPopover()
         setupNotifications()
         loadReelFrames()
-        bubblePanelController = BubblePanelController(session: session)
-        controlBarController  = ControlBarController(session: session)
+        bubblePanelController     = BubblePanelController(session: session)
+        controlBarController      = ControlBarController(session: session)
+        effectsOverlayController  = EffectsOverlayController(session: session)
 
         // Drive menu bar icon state from session state.
         session.$state
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
                 switch state {
+                case .staged:
+                    // Dismiss the popover as soon as the user taps Go.
+                    self?.popover?.performClose(nil)
                 case .countdown:
-                    // Dismiss the panel the moment the user hits Record —
-                    // before the countdown has even finished.
+                    // Safety net: also close if still open when countdown starts.
                     self?.popover?.performClose(nil)
                 case .recording:
-                    // Also close in case countdown was skipped (0 s setting).
-                    self?.popover?.performClose(nil)
                     self?.startReelAnimation()
                 case .paused:
                     self?.stopReelAnimation()
@@ -125,7 +127,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupPopover() {
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 320, height: 400)
+        popover.contentSize = NSSize(width: 340, height: 340)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
             rootView: MenuBarView(onOpenSettings: { [weak self] in self?.openSettings() })

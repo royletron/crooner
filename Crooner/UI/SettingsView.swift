@@ -20,10 +20,13 @@ struct SettingsView: View {
                 .environmentObject(session)
                 .tabItem { Label("Webcam", systemImage: "camera.fill") }
 
+            EffectsTab()
+                .tabItem { Label("Effects", systemImage: "sparkles") }
+
             GeneralTab()
                 .tabItem { Label("General", systemImage: "gearshape") }
         }
-        .frame(width: 420, height: 300)
+        .frame(width: 420, height: 320)
         .padding(20)
     }
 }
@@ -161,6 +164,51 @@ private struct WebcamTab: View {
         case .bottomLeft:  return "Bottom left"
         case .bottomRight: return "Bottom right"
         }
+    }
+}
+
+// MARK: - Effects
+
+private struct EffectsTab: View {
+    @AppStorage(AppStorageKey.mouseTrailEnabled)   private var trailEnabled   = false
+    @AppStorage(AppStorageKey.clickCirclesEnabled) private var circlesEnabled = false
+    @AppStorage(AppStorageKey.trailEmoji)          private var trailEmoji     = "✨"
+
+    private let emojiOptions: [(String, String)] = [
+        ("✨", "Sparkles"), ("⭐️", "Star"),  ("🎉", "Confetti"),
+        ("💫", "Dizzy"),   ("🔥", "Fire"),   ("❤️", "Heart"),
+        ("🎈", "Balloon"), ("🌟", "Glow"),
+    ]
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Mouse trail", isOn: $trailEnabled)
+
+                if trailEnabled {
+                    LabeledContent("Emoji") {
+                        Picker("", selection: $trailEmoji) {
+                            ForEach(emojiOptions, id: \.0) { emoji, label in
+                                Text("\(emoji)  \(label)").tag(emoji)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 140)
+                    }
+                }
+            } footer: {
+                Text("Emoji confetti trails the mouse during recording.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Click circles", isOn: $circlesEnabled)
+            } footer: {
+                Text("A ripple circle highlights every left-click.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

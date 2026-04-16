@@ -1,5 +1,6 @@
 import CoreImage
 import CoreVideo
+import Foundation
 import ScreenCaptureKit
 
 // MARK: - Compositor
@@ -55,6 +56,15 @@ actor CompositorPipeline {
     /// allocating new filter objects at 30–60 fps.
     private let blendFilter     = CIFilter(name: "CIBlendWithMask")
     private let compositeFilter = CIFilter(name: "CISourceAtopCompositing")
+
+    // MARK: - Effects
+
+    /// Set by `RecordingSession` immediately after creating the compositor.
+    private var effectsEngine: EffectsEngine?
+
+    func setEffectsEngine(_ engine: EffectsEngine?) {
+        effectsEngine = engine
+    }
 
     // MARK: - Public API
 
@@ -253,15 +263,109 @@ actor CompositorPipeline {
         compositeFilter?.setValue(screenCI,         forKey: kCIInputBackgroundImageKey)
         guard let compositeCI = compositeFilter?.outputImage else { return screen }
 
+        // — Step 5b: composite effects layer ——————————————————————————————————
+
+        let withEffects: CIImage
+        if let effectsCI = renderEffects(outputSize: outputSize) {
+            compositeFilter?.setValue(effectsCI,   forKey: kCIInputImageKey)
+            compositeFilter?.setValue(compositeCI, forKey: kCIInputBackgroundImageKey)
+            withEffects = compositeFilter?.outputImage ?? compositeCI
+        } else {
+            withEffects = compositeCI
+        }
+
         // — Step 6: render to pooled buffer ———————————————————————————————————
 
         guard let output = allocateOutputBuffer() else { return screen }
         ciContext.render(
-            compositeCI,
+            withEffects,
             to: output,
             bounds: CGRect(origin: .zero, size: outputSize),
             colorSpace: CGColorSpaceCreateDeviceRGB()
         )
         return output
+    }
+
+    // MARK: - Effects rendering
+
+    /// Renders all live particles into a `CIImage` the size of `outputSize`.
+    /// Returns `nil` when there are no active particles (fast path).
+    private func renderEffects(outputSize: CGSize) -> CIImage? {
+        guard let engine = effectsEngine else { return nil }
+
+        let particles = engine.snapshotParticles()
+        guard !particles.isEmpty else { return nil }
+
+        let meta = engine.snapshotMeta()
+        guard meta.trailEnabled || meta.clickEnabled else { return nil }
+
+        let now = CACurrentMediaTime()
+        let frame = meta.captureFrame   // AppKit coords (y-up)
+        let scaleX = frame.width  > 0 ? outputSize.width  / frame.width  : 1
+        let scaleY = frame.height > 0 ? outputSize.height / frame.height : 1
+
+        // One CGContext for all particles this frame.
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data:             nil,
+            width:            Int(outputSize.width),
+            height:           Int(outputSize.height),
+            bitsPerComponent: 8,
+            bytesPerRow:      0,
+            space:            colorSpace,
+            bitmapInfo:       CGImageAlphaInfo.premultipliedFirst.rawValue
+                              | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else { return nil }
+
+        for p in particles {
+            let α = p.alpha(at: now)
+            guard α > 0.01 else { continue }
+
+            // Convert global AppKit (y-up) → video-frame pixels (y-down, top-left).
+            let globalPos = p.currentOrigin(at: now)
+            let px = (globalPos.x - frame.minX) * scaleX
+            let py = (frame.maxY - globalPos.y)  * scaleY
+
+            guard px > -80, px < outputSize.width  + 80,
+                  py > -80, py < outputSize.height + 80 else { continue }
+
+            let sc    = CGFloat(p.scale(at: now))
+            let angle = CGFloat(p.rotation(at: now))
+
+            ctx.saveGState()
+            ctx.translateBy(x: px, y: outputSize.height - py)   // flip y for CG (y-up)
+            ctx.rotate(by: angle)
+            ctx.scaleBy(x: sc, y: sc)
+            ctx.setAlpha(α)
+
+            switch p.kind {
+            case .trail:
+                if meta.trailEnabled, let emojiCI = meta.emojiImage {
+                    // Draw at 40 logical-point equivalent in video pixels.
+                    // scaleX converts points → pixels, normalising for display density.
+                    // sc (already in the context transform) handles per-frame shrink.
+                    let targetPx = 40.0 * scaleX
+                    if let cg = ciContext.createCGImage(emojiCI, from: emojiCI.extent) {
+                        ctx.draw(cg, in: CGRect(x: -targetPx / 2, y: -targetPx / 2,
+                                               width: targetPx,   height: targetPx))
+                    }
+                }
+
+            case .click:
+                if meta.clickEnabled {
+                    // Match overlay: 14pt base, sc already in transform.
+                    let r      = 14.0 * scaleX
+                    let lineW  = max(1, (2.0 * scaleX) * (1 - CGFloat(p.progress(at: now))))
+                    ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+                    ctx.setLineWidth(lineW)
+                    ctx.strokeEllipse(in: CGRect(x: -r, y: -r, width: r * 2, height: r * 2))
+                }
+            }
+
+            ctx.restoreGState()
+        }
+
+        guard let cgImage = ctx.makeImage() else { return nil }
+        return CIImage(cgImage: cgImage)
     }
 }

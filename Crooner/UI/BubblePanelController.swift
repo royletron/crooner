@@ -60,12 +60,29 @@ final class BubblePanelController {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.update() }
             .store(in: &subscriptions)
+
+        // Webcam bubble only appears once the user is actively recording.
+        session.$state
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.update() }
+            .store(in: &subscriptions)
     }
 
     // MARK: - State sync
 
     private func update() {
         guard let session else { hidePanel(); return }
+
+        // Show the webcam bubble from .staged onwards so the user can frame
+        // themselves before hitting Record.  Hide during idle and finishing.
+        switch session.state {
+        case .staged, .countdown, .recording, .paused:
+            break
+        default:
+            hidePanel()
+            return
+        }
+
         guard session.bubbleEnabled, let source = session.selectedSource else {
             hidePanel()
             return

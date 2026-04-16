@@ -1,14 +1,16 @@
-import SwiftUI
-import ScreenCaptureKit
-import CoreVideo
+import AVFoundation
 import AppKit
+import CoreVideo
+import ScreenCaptureKit
+import SwiftUI
 
 // MARK: - Capture mode
 
 private enum CaptureMode: String, CaseIterable {
-    case fullScreen = "Full Screen"
+    case fullScreen = "Screen"
     case window     = "Window"
     case area       = "Area"
+    case recordings = "Recordings"
 }
 
 // MARK: - Source picker (root)
@@ -16,14 +18,20 @@ private enum CaptureMode: String, CaseIterable {
 struct SourcePickerView: View {
     @EnvironmentObject var session: RecordingSession
 
-    @State private var mode: CaptureMode = .fullScreen
-    @State private var content: SCShareableContent?
+    @State private var mode:      CaptureMode = .fullScreen
+    @State private var content:   SCShareableContent?
     @State private var isLoading = true
     @State private var loadError: String?
 
+    // Audio config — kept as local @State so the Toggle and Picker own their
+    // state directly; values are written to the session only when Go is tapped.
+    @State private var micDevices:          [AVCaptureDevice] = []
+    @State private var selectedMicID:       String?  = nil    // nil = system default
+    @State private var systemAudioEnabled:  Bool     = true
+
     var body: some View {
         VStack(spacing: 0) {
-            // Segmented mode selector
+            // Segmented mode selector (includes Recordings)
             Picker("Capture mode", selection: $mode) {
                 ForEach(CaptureMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
@@ -34,72 +42,95 @@ struct SourcePickerView: View {
 
             Divider()
 
-            // Source list — fixed height so the popover doesn't resize
-            ZStack {
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let err = loadError {
-                    errorPlaceholder(err)
-                } else {
-                    switch mode {
-                    case .fullScreen:
-                        FullScreenTabView(displays: content?.displays ?? [])
-                    case .window:
-                        WindowTabView(windows: filteredWindows)
-                    case .area:
-                        AreaTabView(displays: content?.displays ?? [])
+            // ── Content area (fixed height) ───────────────────────────────
+            contentArea
+                .frame(height: 200)
+
+            // ── Audio config + Go button (hidden for Recordings mode) ─────
+            if mode != .recordings {
+                Divider()
+
+                // Mic picker + system-audio toggle
+                HStack(spacing: 8) {
+                    Image(systemName: "mic.fill")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+
+                    Picker("Microphone", selection: $selectedMicID) {
+                        Text("Default").tag(nil as String?)
+                        ForEach(micDevices, id: \.uniqueID) { device in
+                            Text(device.localizedName).tag(device.uniqueID as String?)
+                        }
                     }
-                }
-            }
-            .frame(height: 200)
-
-            Divider()
-
-            // Webcam toggle + size picker + Record button
-            HStack(spacing: 8) {
-                // Camera on/off toggle
-                Toggle(isOn: $session.bubbleEnabled) {
-                    Image(systemName: "camera.fill")
-                }
-                .toggleStyle(.button)
-                .help(session.bubbleEnabled ? "Hide webcam bubble" : "Show webcam bubble")
-
-                // Bubble size — only visible when bubble is on
-                if session.bubbleEnabled {
-                    Picker("Bubble size", selection: $session.bubbleSize) {
-                        ForEach(BubbleSize.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     .labelsHidden()
-                    .frame(width: 72)
-                }
+                    .frame(maxWidth: 150)
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    Task { try? await session.startRecording() }
-                } label: {
-                    switch session.state {
-                    case .countdown(let n): Label("Starting in \(n)…", systemImage: "timer")
-                    case .recording:        Label("Recording", systemImage: "stop.circle.fill")
-                    case .finishing:        Label("Finishing…", systemImage: "hourglass")
-                    default:                Label("Record", systemImage: "record.circle.fill")
+                    Toggle(isOn: $systemAudioEnabled) {
+                        Label("System Audio", systemImage: "speaker.wave.2")
                     }
+                    .toggleStyle(.checkbox)
+                    .help("Include system audio in the recording")
                 }
-                .controlSize(.large)
-                .buttonStyle(.borderedProminent)
-                .tint(session.state == .recording ? .orange : .red)
-                .disabled(session.selectedSource == nil || session.state != .idle)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+
+            // Absorb leftover height so the header and footer never shift.
+            Spacer(minLength: 0)
         }
         .task { await loadContent() }
+        .onAppear { loadMicDevices() }
+        // Always clear the selected source when the mode changes so the Go
+        // button (in the footer) is correctly disabled until a source is picked.
         .onChange(of: mode) { _ in session.selectedSource = nil }
+        // Keep session in sync eagerly so MenuBarView's Go button can simply
+        // call session.stage() without needing to read local @State.
+        .onChange(of: selectedMicID) { id in
+            session.selectedMicDevice = micDevices.first { $0.uniqueID == id }
+        }
+        .onChange(of: systemAudioEnabled) { session.systemAudioEnabled = $0 }
+        // Auto-switch to Recordings when a recording finishes.
+        .onChange(of: session.lastRecordingURL) { url in
+            if url != nil { mode = .recordings }
+        }
+    }
+
+    // MARK: - Content area
+
+    @ViewBuilder
+    private var contentArea: some View {
+        if mode == .recordings {
+            RecordingsListView(lastURL: session.lastRecordingURL)
+        } else if isLoading {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let err = loadError {
+            errorPlaceholder(err)
+        } else {
+            switch mode {
+            case .fullScreen:
+                FullScreenTabView(displays: content?.displays ?? [])
+            case .window:
+                WindowTabView(windows: filteredWindows)
+            case .area:
+                AreaTabView(displays: content?.displays ?? [])
+            case .recordings:
+                EmptyView()
+            }
+        }
     }
 
     // MARK: - Helpers
+
+    private func loadMicDevices() {
+        // AVCaptureDevice.devices(for:) is deprecated but returns all audio input devices
+        // across all macOS 13+ versions without version gating.
+        micDevices = AVCaptureDevice.devices(for: .audio)
+    }
 
     private var filteredWindows: [SCWindow] {
         (content?.windows ?? [])
@@ -360,6 +391,68 @@ private struct ThumbnailView: View {
             contentFilter: filter,
             configuration: config
         )
+    }
+}
+
+// MARK: - Recordings list
+
+private struct RecordingsListView: View {
+    let lastURL: URL?
+
+    var body: some View {
+        if let url = lastURL {
+            VStack(spacing: 0) {
+                RecordingRow(url: url)
+                Spacer()
+            }
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "film")
+                    .font(.largeTitle)
+                    .foregroundStyle(.tertiary)
+                Text("No recordings yet")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+private struct RecordingRow: View {
+    let url: URL
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.title3)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(url.lastPathComponent)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if let size = fileSize(url) {
+                    Text(size)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } label: {
+                Image(systemName: "folder").font(.callout)
+            }
+            .buttonStyle(.borderless)
+            .help("Show in Finder")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private func fileSize(_ url: URL) -> String? {
+        guard let bytes = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 }
 

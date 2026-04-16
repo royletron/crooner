@@ -1,5 +1,7 @@
+import AudioToolbox
 import AVFoundation
 import Combine
+import CoreAudio
 import SwiftUI
 @preconcurrency import UserNotifications
 
@@ -7,7 +9,8 @@ import SwiftUI
 
 enum RecordingState: Equatable {
     case idle
-    case countdown(Int)   // seconds remaining before recording starts
+    case staged                 // source + audio config chosen; pill visible, waiting for Record tap
+    case countdown(Int)         // seconds remaining before recording starts
     case recording
     case paused
     case finishing
@@ -34,7 +37,9 @@ enum RecordingSessionError: LocalizedError {
 ///
 /// State transitions:
 /// ```
-/// idle → countdown(3..1) → recording ⇄ paused → finishing → idle
+/// idle → staged → countdown(3..1) → recording ⇄ paused → finishing → idle
+///                    ↑ cancelStage()
+///         staged ────┘
 /// ```
 @MainActor
 final class RecordingSession: ObservableObject {
@@ -57,13 +62,26 @@ final class RecordingSession: ObservableObject {
     @Published private(set) var lastRecordingURL:    URL?
     @Published private(set) var micLevel:            Float          = 0
 
+    // MARK: - Audio configuration (set by SourcePickerView before staging)
+
+    /// Specific mic to use; nil = system default.
+    var selectedMicDevice: AVCaptureDevice? = nil
+    /// Whether to mix in system audio.  Defaults to true.
+    var systemAudioEnabled: Bool = true
+
+    // MARK: - Effects
+
+    /// Shared effects engine — owned here, observed by the overlay controller and compositor.
+    let effectsEngine = EffectsEngine()
+
     // MARK: - Engine references (nil between recordings)
 
-    private var screenEngine: ScreenCaptureEngine?
-    private var webcamEngine: WebcamCaptureEngine?
-    private var audioMixer:   AudioMixerEngine?
-    private var compositor:   CompositorPipeline?
-    private var fileWriter:   FileWriter?
+    private var screenEngine:      ScreenCaptureEngine?
+    private var webcamEngine:      WebcamCaptureEngine?
+    private var audioMixer:        AudioMixerEngine?
+    private var compositor:        CompositorPipeline?
+    private var fileWriter:        FileWriter?
+    private var levelMonitorEngine: AVAudioEngine?
 
     // MARK: - Timer / subscriptions
 
@@ -99,15 +117,33 @@ final class RecordingSession: ObservableObject {
 
     // MARK: - Public API
 
+    /// Transition from `.idle` to `.staged` — shows the pill bar without starting any engines.
+    /// The user must then tap Record on the pill to actually begin.
+    func stage() {
+        guard selectedSource != nil else { return }
+        guard case .idle = state else { return }
+        state = .staged
+        startMicMonitor()
+    }
+
+    /// Cancel out of the staged state and return to `.idle`.
+    func cancelStage() {
+        guard case .staged = state else { return }
+        stopMicMonitor()
+        state = .idle
+    }
+
     /// Run the countdown then start all engines and begin writing to disk.
     ///
     /// Throws if no source is selected or any engine fails to start.
     func startRecording() async throws {
         guard let source = selectedSource else { throw RecordingSessionError.noSourceSelected }
-        guard case .idle = state else { return }
+        guard case .staged = state else { return }
+        stopMicMonitor()
 
         // — Apply persisted settings ————————————————————————————————
         applyStoredSettings()
+        applyEffectsSettings()
 
         // — Countdown ——————————————————————————————————————————————
         let ud = UserDefaults.standard
@@ -129,7 +165,8 @@ final class RecordingSession: ObservableObject {
         do {
             let screenStream = try await screen.start(source: source, settings: settings)
             let webcamStream = try await webcam.start()
-            let audioStream  = try mixer.start()
+            let audioStream  = try mixer.start(micDevice: selectedMicDevice,
+                                                         systemAudioEnabled: systemAudioEnabled)
 
             // Apply persisted audio volumes.
             let ud = UserDefaults.standard
@@ -146,12 +183,13 @@ final class RecordingSession: ObservableObject {
                 mixer?.feedSystemAudio(buffer)
             }
 
-            // Configure compositor with current bubble settings.
+            // Configure compositor with current bubble settings and effects engine.
             await comp.configure(
                 bubbleEnabled: bubbleEnabled,
                 bubbleSize:    bubbleSize,
                 bubbleCorner:  bubbleCorner
             )
+            await comp.setEffectsEngine(effectsEngine)
             let compositorStream = await comp.start(
                 screenStream: screenStream,
                 webcamStream: webcamStream,
@@ -184,6 +222,9 @@ final class RecordingSession: ObservableObject {
         audioSources = mixer.sources
         isMuted      = false
         elapsed      = 0
+
+        // — Start effects tracking ————————————————————————————————————
+        effectsEngine.startTracking(source: source)
 
         // — Start elapsed clock ————————————————————————————————————
         startElapsedTimer()
@@ -233,6 +274,7 @@ final class RecordingSession: ObservableObject {
         await webcamEngine?.stop()
         audioMixer?.stop()
         await compositor?.stop()
+        effectsEngine.stopTracking()
 
         // Brief pause to let any in-flight frames propagate.
         try? await Task.sleep(for: .milliseconds(150))
@@ -319,6 +361,15 @@ final class RecordingSession: ObservableObject {
             .store(in: &compositorSyncSubs)
     }
 
+    // MARK: - Private: effects settings
+
+    private func applyEffectsSettings() {
+        let ud = UserDefaults.standard
+        effectsEngine.mouseTrailEnabled   = ud.bool(forKey: AppStorageKey.mouseTrailEnabled)
+        effectsEngine.clickCirclesEnabled = ud.bool(forKey: AppStorageKey.clickCirclesEnabled)
+        effectsEngine.trailEmoji          = ud.string(forKey: AppStorageKey.trailEmoji) ?? "✨"
+    }
+
     // MARK: - Private: stored settings
 
     /// Reads persisted output settings from UserDefaults into `self.settings`
@@ -337,6 +388,57 @@ final class RecordingSession: ObservableObject {
         if let path = ud.string(forKey: AppStorageKey.saveFolderPath) {
             settings.saveFolderURL = URL(fileURLWithPath: path, isDirectory: true)
         }
+    }
+
+    // MARK: - Private: staged mic monitor
+
+    /// Lightweight engine that drives the VU meter while the session is staged.
+    /// It is torn down before the full `AudioMixerEngine` starts so they never
+    /// compete for the input device.
+    private func startMicMonitor() {
+        let engine = AVAudioEngine()
+        let input  = engine.inputNode
+
+        // Optionally select the mic device the user picked in the source picker.
+        if let device   = selectedMicDevice,
+           let deviceID = AudioMixerEngine.coreAudioDeviceID(for: device),
+           let au       = input.audioUnit {
+            var id = deviceID
+            AudioUnitSetProperty(
+                au,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global, 0,
+                &id, UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+        }
+
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0 else { return }
+
+        // `smoothed` is a heap-captured var — safe to mutate from the audio thread.
+        var smoothed: Float = 0
+        input.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self] buffer, _ in
+            guard let data = buffer.floatChannelData, buffer.frameLength > 0 else { return }
+            let n   = Int(buffer.frameLength)
+            var sum: Float = 0
+            for i in 0..<n { sum += data[0][i] * data[0][i] }
+            let rms        = sqrt(sum / Float(n))
+            let db         = 20.0 * log10(max(rms, 1e-7))
+            let normalised = max(0, min(1, Float((db + 60.0) / 60.0)))
+            let decayed    = max(normalised, smoothed * 0.88)
+            smoothed       = decayed
+            DispatchQueue.main.async { [weak self] in self?.micLevel = decayed }
+        }
+
+        try? engine.start()
+        levelMonitorEngine = engine
+    }
+
+    private func stopMicMonitor() {
+        levelMonitorEngine?.inputNode.removeTap(onBus: 0)
+        levelMonitorEngine?.stop()
+        levelMonitorEngine = nil
+        micLevel = 0
     }
 
     // MARK: - Private: teardown
