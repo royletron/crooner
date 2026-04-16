@@ -9,15 +9,25 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  # Allows manually re-running the build for an existing tag (e.g. if the
+  # automatic run failed or the tag was created before this workflow existed).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build (e.g. v1.0.3)'
+        required: true
 
 jobs:
   release:
     if: >-
-      github.event.pull_request.merged == true &&
+      github.event_name == 'workflow_dispatch' ||
       (
-        contains(github.event.pull_request.labels.*.name, 'release: patch') ||
-        contains(github.event.pull_request.labels.*.name, 'release: minor') ||
-        contains(github.event.pull_request.labels.*.name, 'release: major')
+        github.event.pull_request.merged == true &&
+        (
+          contains(github.event.pull_request.labels.*.name, 'release: patch') ||
+          contains(github.event.pull_request.labels.*.name, 'release: minor') ||
+          contains(github.event.pull_request.labels.*.name, 'release: major')
+        )
       )
     runs-on: macos-latest
     permissions:
@@ -31,42 +41,46 @@ jobs:
 
       # ── Version ────────────────────────────────────────────────────────
 
-      - name: Determine bump type from PR label
-        id: bump
+      - name: Resolve version
+        id: version
         env:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          MANUAL_TAG: ${{ inputs.tag }}
         run: |
-          if echo "$LABELS" | grep -q 'release: major'; then
-            echo "type=major" >> "$GITHUB_OUTPUT"
-          elif echo "$LABELS" | grep -q 'release: minor'; then
-            echo "type=minor" >> "$GITHUB_OUTPUT"
+          if [ -n "$MANUAL_TAG" ]; then
+            # Manual dispatch — use the supplied tag as-is, no bump needed.
+            TAG="$MANUAL_TAG"
           else
-            echo "type=patch" >> "$GITHUB_OUTPUT"
+            # PR merge — compute next tag from the highest existing semver tag.
+            LATEST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -1)
+            [ -z "$LATEST" ] && LATEST="v0.0.0"
+            VERSION="${LATEST#v}"
+            MAJOR=$(echo "$VERSION" | cut -d. -f1)
+            MINOR=$(echo "$VERSION" | cut -d. -f2)
+            PATCH=$(echo "$VERSION" | cut -d. -f3)
+            if echo "$LABELS" | grep -q 'release: major'; then
+              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+            elif echo "$LABELS" | grep -q 'release: minor'; then
+              MINOR=$((MINOR + 1)); PATCH=0
+            else
+              PATCH=$((PATCH + 1))
+            fi
+            TAG="v${MAJOR}.${MINOR}.${PATCH}"
           fi
-
-      - name: Compute next version
-        id: version
-        run: |
-          LATEST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -1)
-          [ -z "$LATEST" ] && LATEST="v0.0.0"
-          VERSION="${LATEST#v}"
-          MAJOR=$(echo "$VERSION" | cut -d. -f1)
-          MINOR=$(echo "$VERSION" | cut -d. -f2)
-          PATCH=$(echo "$VERSION" | cut -d. -f3)
-          case "${{ steps.bump.outputs.type }}" in
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            *)     PATCH=$((PATCH + 1)) ;;
-          esac
-          echo "tag=v${MAJOR}.${MINOR}.${PATCH}"   >> "$GITHUB_OUTPUT"
-          echo "value=${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"             >> "$GITHUB_OUTPUT"
+          echo "value=${TAG#v}"       >> "$GITHUB_OUTPUT"
 
       - name: Push tag
+        # Skip if the tag already exists (manual re-run of an existing tag).
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          if git ls-remote --tags origin "${{ steps.version.outputs.tag }}" | grep -q .; then
+            echo "Tag ${{ steps.version.outputs.tag }} already exists — skipping."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "${{ steps.version.outputs.tag }}"
+            git push origin "${{ steps.version.outputs.tag }}"
+          fi
 
       # ── Build ──────────────────────────────────────────────────────────
 
