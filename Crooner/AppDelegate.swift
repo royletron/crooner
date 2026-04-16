@@ -11,6 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let session = RecordingSession()
     private var bubblePanelController:   BubblePanelController?
     private var controlBarController:    ControlBarController?
+    private var effectsOverlayController: EffectsOverlayController?
     private var settingsWindow:          NSWindow?
     private var subscriptions = Set<AnyCancellable>()
 
@@ -27,8 +28,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupPopover()
         setupNotifications()
         loadReelFrames()
-        bubblePanelController = BubblePanelController(session: session)
-        controlBarController  = ControlBarController(session: session)
+        bubblePanelController     = BubblePanelController(session: session)
+        controlBarController      = ControlBarController(session: session)
+        effectsOverlayController  = EffectsOverlayController(session: session)
 
         // Drive menu bar icon state from session state.
         session.$state

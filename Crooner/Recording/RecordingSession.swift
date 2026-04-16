@@ -57,6 +57,11 @@ final class RecordingSession: ObservableObject {
     @Published private(set) var lastRecordingURL:    URL?
     @Published private(set) var micLevel:            Float          = 0
 
+    // MARK: - Effects
+
+    /// Shared effects engine — owned here, observed by the overlay controller and compositor.
+    let effectsEngine = EffectsEngine()
+
     // MARK: - Engine references (nil between recordings)
 
     private var screenEngine: ScreenCaptureEngine?
@@ -108,6 +113,7 @@ final class RecordingSession: ObservableObject {
 
         // — Apply persisted settings ————————————————————————————————
         applyStoredSettings()
+        applyEffectsSettings()
 
         // — Countdown ——————————————————————————————————————————————
         let ud = UserDefaults.standard
@@ -146,12 +152,13 @@ final class RecordingSession: ObservableObject {
                 mixer?.feedSystemAudio(buffer)
             }
 
-            // Configure compositor with current bubble settings.
+            // Configure compositor with current bubble settings and effects engine.
             await comp.configure(
                 bubbleEnabled: bubbleEnabled,
                 bubbleSize:    bubbleSize,
                 bubbleCorner:  bubbleCorner
             )
+            await comp.setEffectsEngine(effectsEngine)
             let compositorStream = await comp.start(
                 screenStream: screenStream,
                 webcamStream: webcamStream,
@@ -184,6 +191,9 @@ final class RecordingSession: ObservableObject {
         audioSources = mixer.sources
         isMuted      = false
         elapsed      = 0
+
+        // — Start effects tracking ————————————————————————————————————
+        effectsEngine.startTracking(source: source)
 
         // — Start elapsed clock ————————————————————————————————————
         startElapsedTimer()
@@ -233,6 +243,7 @@ final class RecordingSession: ObservableObject {
         await webcamEngine?.stop()
         audioMixer?.stop()
         await compositor?.stop()
+        effectsEngine.stopTracking()
 
         // Brief pause to let any in-flight frames propagate.
         try? await Task.sleep(for: .milliseconds(150))
@@ -291,6 +302,15 @@ final class RecordingSession: ObservableObject {
                 }
             }
             .store(in: &compositorSyncSubs)
+    }
+
+    // MARK: - Private: effects settings
+
+    private func applyEffectsSettings() {
+        let ud = UserDefaults.standard
+        effectsEngine.mouseTrailEnabled   = ud.bool(forKey: AppStorageKey.mouseTrailEnabled)
+        effectsEngine.clickCirclesEnabled = ud.bool(forKey: AppStorageKey.clickCirclesEnabled)
+        effectsEngine.trailEmoji          = ud.string(forKey: AppStorageKey.trailEmoji) ?? "✨"
     }
 
     // MARK: - Private: stored settings

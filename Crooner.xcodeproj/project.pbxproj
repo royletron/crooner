@@ -14,6 +14,7 @@
 		34E0FCE5CAE0C2D4143D4834 /* CroonerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D146A86AB5CB4C86AE5A10C6 /* CroonerApp.swift */; };
 		3665A1367DB72ABF308BC32E /* BubblePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF971F6C12D177CAA5712F1 /* BubblePanelController.swift */; };
 		37707BD196AB8B40F24EDD88 /* AppStorageKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4710B8C7B47959C6FD96FA71 /* AppStorageKey.swift */; };
+		3BB4F49F654A137B3E51D548 /* EffectsOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040FD66C89FBAD900720ED0F /* EffectsOverlayView.swift */; };
 		40253D5718B517EC5F87EC29 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DE3EC99ED2450D0D5A0B94 /* PermissionManager.swift */; };
 		51C2CBE0A23A5E03BCDD2D7D /* BubbleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDBCF35AA31CFC9C7F6B4891 /* BubbleSettings.swift */; };
 		56FEB5BB421DBF717D44230F /* ScreenCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD66DD9FFA6F129BFE7D302 /* ScreenCaptureEngine.swift */; };
@@ -21,7 +22,9 @@
 		63A056314B83297A95DF89CB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C087E7AF3E68A8F423AB49 /* SettingsView.swift */; };
 		6651DB75374001B350254902 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FFB681CC523E0FEA3D7A0002 /* CoreVideo.framework */; };
 		778A7D08D266C5EDA033A4F3 /* ControlBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71C19308533E35338E2B7365 /* ControlBarView.swift */; };
+		79218B00EC46D16BED4CB89B /* EffectParticle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FFC3BC1570BA6D06E20E424 /* EffectParticle.swift */; };
 		863DEAED47593B6EB599C289 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3441D84D29AF255F5AA998CF /* ContentView.swift */; };
+		889F3A6E2782895C008E52C6 /* EffectsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44906998140AF3DDE59BD9ED /* EffectsEngine.swift */; };
 		895FEBE09B77E98D8CE008E4 /* ControlBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574D080F346C915C6BA144D4 /* ControlBarController.swift */; };
 		89E2C50D14B0FC717D16797D /* WebcamCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9506D38CB4FEEF58D687FE /* WebcamCaptureEngine.swift */; };
 		9227227C7A56FD395AC426AD /* SCShareableContent+Fetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0656BCBF2331082387B9A2D5 /* SCShareableContent+Fetch.swift */; };
@@ -33,17 +36,22 @@
 		CCE3EEAD845B9A0B2AAAAAB0 /* PermissionBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA295A7701F120776C187C2D /* PermissionBannerView.swift */; };
 		CDEC51D80EA7FB1EFD5F5BCD /* AudioMixerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B191BBEC674367C3FF15F023 /* AudioMixerEngine.swift */; };
 		D3A5252116D793374CA2B6AD /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 468DB97654053FFA9C06F01F /* AppDelegate.swift */; };
+		DDA6969144BAF4A122C622E3 /* VUMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 175B237EEE6503BAC7CE6FF2 /* VUMeterView.swift */; };
+		E4C3ED093186D988BD9E07BD /* EffectsOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B455CDF3ED75AA544F6B5D3E /* EffectsOverlayController.swift */; };
 		EBB2A3DA9188AD492D2C87E7 /* CompositorPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 561BA5ACDBE51C1C764B9473 /* CompositorPipeline.swift */; };
 		F279EA42361DB9E27225552E /* ScreenCaptureKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C1B8C8BBE6888D1861875386 /* ScreenCaptureKit.framework */; };
 		F44ACB4D711AF0E325E04E4F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6F15A947449224B64565BA1D /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		040FD66C89FBAD900720ED0F /* EffectsOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectsOverlayView.swift; sourceTree = "<group>"; };
 		0656BCBF2331082387B9A2D5 /* SCShareableContent+Fetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SCShareableContent+Fetch.swift"; sourceTree = "<group>"; };
 		1361C78F34E8A1987AB4E805 /* CaptureSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSource.swift; sourceTree = "<group>"; };
+		175B237EEE6503BAC7CE6FF2 /* VUMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VUMeterView.swift; sourceTree = "<group>"; };
 		24CCBA184E1D94A0110355B8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2A7FAF079D93B5A9D9E51BC0 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		3441D84D29AF255F5AA998CF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		44906998140AF3DDE59BD9ED /* EffectsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectsEngine.swift; sourceTree = "<group>"; };
 		468DB97654053FFA9C06F01F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		4710B8C7B47959C6FD96FA71 /* AppStorageKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStorageKey.swift; sourceTree = "<group>"; };
 		47175FBCD746928364FF6DC9 /* WebcamBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamBubbleView.swift; sourceTree = "<group>"; };
@@ -53,6 +61,7 @@
 		6F15A947449224B64565BA1D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		70DE3EC99ED2450D0D5A0B94 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
 		71C19308533E35338E2B7365 /* ControlBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlBarView.swift; sourceTree = "<group>"; };
+		7FFC3BC1570BA6D06E20E424 /* EffectParticle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectParticle.swift; sourceTree = "<group>"; };
 		894636DA025D54BF2CD417EC /* Crooner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Crooner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8A9506D38CB4FEEF58D687FE /* WebcamCaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebcamCaptureEngine.swift; sourceTree = "<group>"; };
 		8AE2D16976A560FA4CEE686D /* RecordingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSession.swift; sourceTree = "<group>"; };
@@ -61,6 +70,7 @@
 		A50BA6A728879DC6CEACDB58 /* FileWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWriter.swift; sourceTree = "<group>"; };
 		AFD66DD9FFA6F129BFE7D302 /* ScreenCaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureEngine.swift; sourceTree = "<group>"; };
 		B191BBEC674367C3FF15F023 /* AudioMixerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMixerEngine.swift; sourceTree = "<group>"; };
+		B455CDF3ED75AA544F6B5D3E /* EffectsOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectsOverlayController.swift; sourceTree = "<group>"; };
 		B9C087E7AF3E68A8F423AB49 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		BDBCF35AA31CFC9C7F6B4891 /* BubbleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubbleSettings.swift; sourceTree = "<group>"; };
 		C1B8C8BBE6888D1861875386 /* ScreenCaptureKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScreenCaptureKit.framework; path = System/Library/Frameworks/ScreenCaptureKit.framework; sourceTree = SDKROOT; };
@@ -100,6 +110,7 @@
 				2A7FAF079D93B5A9D9E51BC0 /* MenuBarView.swift */,
 				DA295A7701F120776C187C2D /* PermissionBannerView.swift */,
 				70DE3EC99ED2450D0D5A0B94 /* PermissionManager.swift */,
+				855D1DAEFEE029D69D4152CD /* Effects */,
 				DA71A8952114A63FB913C1FF /* Models */,
 				5BE8793DBCE6F6A4008F6D0C /* Recording */,
 				481C0127B1E49170F54C896F /* UI */,
@@ -114,8 +125,10 @@
 				DCF971F6C12D177CAA5712F1 /* BubblePanelController.swift */,
 				574D080F346C915C6BA144D4 /* ControlBarController.swift */,
 				71C19308533E35338E2B7365 /* ControlBarView.swift */,
+				040FD66C89FBAD900720ED0F /* EffectsOverlayView.swift */,
 				B9C087E7AF3E68A8F423AB49 /* SettingsView.swift */,
 				8B253C247427BE7F168066EC /* SourcePickerView.swift */,
+				175B237EEE6503BAC7CE6FF2 /* VUMeterView.swift */,
 				47175FBCD746928364FF6DC9 /* WebcamBubbleView.swift */,
 			);
 			path = UI;
@@ -150,6 +163,16 @@
 				894636DA025D54BF2CD417EC /* Crooner.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		855D1DAEFEE029D69D4152CD /* Effects */ = {
+			isa = PBXGroup;
+			children = (
+				7FFC3BC1570BA6D06E20E424 /* EffectParticle.swift */,
+				44906998140AF3DDE59BD9ED /* EffectsEngine.swift */,
+				B455CDF3ED75AA544F6B5D3E /* EffectsOverlayController.swift */,
+			);
+			path = Effects;
 			sourceTree = "<group>";
 		};
 		DA71A8952114A63FB913C1FF /* Models */ = {
@@ -257,6 +280,10 @@
 				895FEBE09B77E98D8CE008E4 /* ControlBarController.swift in Sources */,
 				778A7D08D266C5EDA033A4F3 /* ControlBarView.swift in Sources */,
 				34E0FCE5CAE0C2D4143D4834 /* CroonerApp.swift in Sources */,
+				79218B00EC46D16BED4CB89B /* EffectParticle.swift in Sources */,
+				889F3A6E2782895C008E52C6 /* EffectsEngine.swift in Sources */,
+				E4C3ED093186D988BD9E07BD /* EffectsOverlayController.swift in Sources */,
+				3BB4F49F654A137B3E51D548 /* EffectsOverlayView.swift in Sources */,
 				99858BB1214FEBF664E97636 /* FileWriter.swift in Sources */,
 				2A70ABD5CC442C0BE6FE8A09 /* MenuBarView.swift in Sources */,
 				CCE3EEAD845B9A0B2AAAAAB0 /* PermissionBannerView.swift in Sources */,
@@ -267,6 +294,7 @@
 				56FEB5BB421DBF717D44230F /* ScreenCaptureEngine.swift in Sources */,
 				63A056314B83297A95DF89CB /* SettingsView.swift in Sources */,
 				B3D2E05273621A108C29D1F8 /* SourcePickerView.swift in Sources */,
+				DDA6969144BAF4A122C622E3 /* VUMeterView.swift in Sources */,
 				277F686818949D3E1AF0B867 /* WebcamBubbleView.swift in Sources */,
 				89E2C50D14B0FC717D16797D /* WebcamCaptureEngine.swift in Sources */,
 			);
@@ -365,6 +393,7 @@
 				CODE_SIGN_ENTITLEMENTS = Crooner/Crooner.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Crooner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -374,6 +403,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.crooner.app;
 				SDKROOT = macosx;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
 			};
 			name = Release;

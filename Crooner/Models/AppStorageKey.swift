@@ -18,4 +18,9 @@ enum AppStorageKey {
     // General
     static let countdown      = "general.countdown"   // Int (seconds); 0 = disabled
     static let launchAtLogin  = "general.launchAtLogin"
+
+    // Effects
+    static let mouseTrailEnabled   = "effects.mouseTrailEnabled"   // Bool
+    static let clickCirclesEnabled = "effects.clickCirclesEnabled" // Bool
+    static let trailEmoji          = "effects.trailEmoji"          // String (single emoji)
 }
