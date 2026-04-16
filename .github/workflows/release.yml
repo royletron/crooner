@@ -31,6 +31,17 @@ jobs:
           security set-keychain-settings -t 3600 -u build.keychain
 
           echo "$CERTIFICATE_BASE64" | tr -d '\n' | base64 --decode > /tmp/certificate.p12
+
+          # Verify the decoded file looks like a valid PKCS12 before attempting import.
+          # openssl gives clearer diagnostics than security import.
+          echo "Certificate file size: $(wc -c < /tmp/certificate.p12) bytes"
+          openssl pkcs12 \
+            -in /tmp/certificate.p12 \
+            -noout \
+            -passin "pass:$(echo "$CERTIFICATE_PASSWORD" | tr -d '\n')" \
+            && echo "PKCS12 password verified OK" \
+            || echo "PKCS12 verification FAILED — wrong password or corrupt file"
+
           security import /tmp/certificate.p12 \
             -k build.keychain \
             -P "$(echo "$CERTIFICATE_PASSWORD" | tr -d '\n')" \
