@@ -12,6 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var bubblePanelController:   BubblePanelController?
     private var controlBarController:    ControlBarController?
     private var settingsWindow:          NSWindow?
+    private var onboardingWindow:        NSWindow?
     private var subscriptions = Set<AnyCancellable>()
 
     // MARK: - Menu bar animation
@@ -47,7 +48,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &subscriptions)
 
         Task {
-            await permissions.requestAll()
+            await permissions.requestAll()   // checks status + requests notifications
+            if !permissions.allGranted {
+                showOnboarding()
+            }
         }
     }
 
@@ -128,6 +132,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(session)
         )
         self.popover = popover
+    }
+
+    // MARK: - Onboarding
+
+    /// Shows the step-by-step permission setup window.
+    /// Using a real NSWindow (not a popover) ensures the app has a proper
+    /// activation context so TCC dialogs appear reliably.
+    func showOnboarding() {
+        if onboardingWindow == nil {
+            let controller = NSHostingController(
+                rootView: OnboardingView(onDismiss: { [weak self] in
+                    self?.onboardingWindow?.close()
+                })
+                .environmentObject(permissions)
+            )
+            let window = NSWindow(contentViewController: controller)
+            window.title = "Welcome to Crooner"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            onboardingWindow = window
+        }
+        onboardingWindow?.orderFrontRegardless()
+        onboardingWindow?.makeKey()
     }
 
     // MARK: - Actions

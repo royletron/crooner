@@ -58,26 +58,22 @@ class PermissionManager: ObservableObject {
 
     // MARK: - Request
 
-    /// Call on every launch. Camera/mic use idempotent requestAccess (dialog only on first call).
-    /// Screen recording cannot be requested programmatically; the banner surfaces the System Settings link.
-    /// Notification permission is requested here too — it doesn't block recording.
+    /// Called from the onboarding screen when the user explicitly taps "Grant Access".
+    /// The user interaction ensures the app is frontmost, so the TCC dialog appears reliably.
+    func requestCamera() async {
+        let granted = await AVCaptureDevice.requestAccess(for: .video)
+        cameraStatus = granted ? .granted : .denied
+    }
+
+    func requestMicrophone() async {
+        let granted = await AVCaptureDevice.requestAccess(for: .audio)
+        microphoneStatus = granted ? .granted : .denied
+    }
+
+    /// Checks all statuses and requests notification permission (which doesn't block recording).
+    /// Camera/mic are requested individually via the onboarding screen.
     func requestAll() async {
-        // Bring the app to the front before requesting permissions — macOS 14+
-        // can silently suppress TCC dialogs for apps that don't have focus.
-        NSApplication.shared.activate(ignoringOtherApps: true)
-
-        let cameraGranted = await AVCaptureDevice.requestAccess(for: .video)
-        cameraStatus = cameraGranted ? .granted : .denied
-
-        // Re-activate before the microphone request: the camera dialog dismissal
-        // returns focus to the previously active app, which causes macOS 14+ to
-        // silently suppress the next TCC dialog for a background process.
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        let micGranted = await AVCaptureDevice.requestAccess(for: .audio)
-        microphoneStatus = micGranted ? .granted : .denied
-
-        screenRecordingStatus = await checkScreenRecording()
-
+        await checkAll()
         try? await UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound])
     }
@@ -107,6 +103,14 @@ class PermissionManager: ObservableObject {
             case .screenRecording:  return "rectangle.dashed"
             case .camera:           return "camera"
             case .microphone:       return "mic"
+            }
+        }
+
+        var purpose: String {
+            switch self {
+            case .screenRecording:  return "Captures your screen during recording"
+            case .camera:           return "Shows your face in the webcam bubble"
+            case .microphone:       return "Records your voice narration"
             }
         }
 
