@@ -217,6 +217,31 @@ actor FileWriter {
         return url
     }
 
+    /// Abandon the current recording and remove the partial file from disk.
+    func cancel() async {
+        guard let writer = assetWriter else { return }
+        let url = writer.outputURL
+
+        videoTask?.cancel()
+        audioTask?.cancel()
+        videoTask = nil
+        audioTask = nil
+
+        writer.cancelWriting()
+
+        assetWriter        = nil
+        videoInput         = nil
+        audioInput         = nil
+        adaptor            = nil
+        sessionStart       = nil
+        audioFramesWritten = 0
+        cachedAudioFormat  = nil
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     // MARK: - Private: video
 
     private func appendVideo(pixelBuffer: CVPixelBuffer, pts: CMTime) {
