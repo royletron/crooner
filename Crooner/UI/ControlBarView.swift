@@ -3,12 +3,14 @@ import SwiftUI
 /// The compact pill-shaped bar that floats above the screen during recording.
 ///
 /// During countdown  → red pill with a large animated number.
-/// During recording  → indicator + timer | pause | mic + VU meter | stop.
+/// During recording  → indicator + timer | pause | mic + VU meter | stop | discard.
 ///
 /// Both states are rendered (the recording controls act as an invisible sizer)
 /// so the pill never changes dimensions between states.
 struct ControlBarView: View {
     @ObservedObject var session: RecordingSession
+
+    @State private var confirmDiscard = false
 
     private var isCountdown: Bool {
         if case .countdown = session.state { return true }
@@ -32,6 +34,18 @@ struct ControlBarView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isCountdown)
+        .confirmationDialog(
+            "Discard this recording?",
+            isPresented: $confirmDiscard,
+            titleVisibility: .visible
+        ) {
+            Button("Discard", role: .destructive) {
+                Task { await session.discardRecording() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The recording will be permanently deleted. This cannot be undone.")
+        }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background {
@@ -95,12 +109,21 @@ struct ControlBarView: View {
                     help:       session.isMuted ? "Unmute microphone" : "Mute microphone"
                 ) { session.muteToggle() }
 
-                VUMeterView(level: session.isMuted ? 0 : session.micLevel)
+                VUMeterView(level: session.isMuted ? 0.0 : session.micLevel)
             }
 
             // — Stop ───────────────────────────────────────────────────────
             BarButton(icon: "stop.fill", foreground: .red, help: "Stop recording") {
                 Task { try? await session.stopRecording() }
+            }
+
+            // — Discard ───────────────────────────────────────────────────
+            BarButton(
+                icon: "trash",
+                foreground: .secondary,
+                help: "Discard recording"
+            ) {
+                confirmDiscard = true
             }
         }
     }

@@ -263,6 +263,32 @@ final class RecordingSession: ObservableObject {
         return url
     }
 
+    /// Stop capture without saving: abandons the partial file and deletes it from disk.
+    func discardRecording() async {
+        guard state == .recording || state == .paused else { return }
+
+        state        = .finishing
+        elapsedTimer = nil
+        compositorSyncSubs.removeAll()
+
+        await screenEngine?.stop()
+        await webcamEngine?.stop()
+        audioMixer?.stop()
+        await compositor?.stop()
+
+        try? await Task.sleep(for: .milliseconds(150))
+
+        if let writer = fileWriter {
+            await writer.cancel()
+        }
+
+        tearDown()
+        elapsed      = 0
+        isMuted      = false
+        audioSources = []
+        state        = .idle
+    }
+
     // MARK: - Private: timer
 
     private func startElapsedTimer() {
