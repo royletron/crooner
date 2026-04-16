@@ -1,4 +1,6 @@
+import AudioToolbox
 import AVFoundation
+import CoreAudio
 import CoreMedia
 import Foundation
 
@@ -84,11 +86,36 @@ final class AudioMixerEngine {
     // MARK: - Public API
 
     /// Build the graph, start the engine, and return a stream of mixed PCM buffers.
-    func start() throws -> AsyncStream<AVAudioPCMBuffer> {
+    ///
+    /// - Parameters:
+    ///   - micDevice:          Specific microphone to use; `nil` uses the system default.
+    ///   - systemAudioEnabled: When `false` the system-audio mixer is silenced.
+    func start(micDevice: AVCaptureDevice? = nil,
+               systemAudioEnabled: Bool = true) throws -> AsyncStream<AVAudioPCMBuffer> {
         guard !engine.isRunning else { throw AudioMixerError.engineAlreadyRunning }
+
+        if !systemAudioEnabled,
+           let i = sources.firstIndex(where: { $0.type == .systemAudio }) {
+            sources[i].enabled = false
+        }
 
         attachAndConnect()
         applyVolumes()
+
+        // Select mic device before starting the engine.
+        if let device = micDevice,
+           let deviceID = Self.coreAudioDeviceID(for: device),
+           let au = engine.inputNode.audioUnit {
+            var id = deviceID
+            AudioUnitSetProperty(
+                au,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &id,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+        }
 
         let (stream, continuation) = AsyncStream.makeStream(of: AVAudioPCMBuffer.self)
         lock.withLock { self.continuation = continuation }
@@ -208,6 +235,11 @@ final class AudioMixerEngine {
         // System audio: playerNode → sysAudioMixer → mainMixerNode
         engine.connect(sysAudioPlayer, to: sysAudioMixer, format: Self.systemAudioFormat)
         engine.connect(sysAudioMixer,  to: engine.mainMixerNode, format: Self.systemAudioFormat)
+
+        // Silence the hardware output — audio is captured via the tap only.
+        // Without this, AVAudioEngine routes the mic signal to the output
+        // device, causing audible feedback through headphones.
+        engine.mainMixerNode.outputVolume = 0
     }
 
     private func applyVolumes() {
@@ -218,6 +250,31 @@ final class AudioMixerEngine {
 
     private func mixerNode(for type: AudioSourceType) -> AVAudioMixerNode {
         type == .microphone ? micMixer : sysAudioMixer
+    }
+
+    // MARK: - CoreAudio device lookup
+
+    /// Translates an `AVCaptureDevice` audio UID to a CoreAudio `AudioDeviceID`.
+    /// Returns `nil` if the device cannot be found (e.g. unplugged).
+    static func coreAudioDeviceID(for captureDevice: AVCaptureDevice) -> AudioDeviceID? {
+        var uid      = captureDevice.uniqueID as CFString
+        var deviceID = AudioDeviceID(kAudioObjectUnknown)
+        var outSize  = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address  = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyTranslateUIDToDevice,
+            mScope:    kAudioObjectPropertyScopeGlobal,
+            mElement:  kAudioObjectPropertyElementMain
+        )
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            UInt32(MemoryLayout<CFString>.size),
+            &uid,
+            &outSize,
+            &deviceID
+        )
+        guard status == noErr, deviceID != kAudioObjectUnknown else { return nil }
+        return deviceID
     }
 
     // MARK: - CMSampleBuffer → AVAudioPCMBuffer

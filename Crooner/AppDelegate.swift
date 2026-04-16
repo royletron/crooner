@@ -37,8 +37,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
                 switch state {
-                case .recording:
+                case .staged:
+                    // Dismiss the popover as soon as the user taps Go.
                     self?.popover?.performClose(nil)
+                case .recording:
                     self?.startReelAnimation()
                 case .paused:
                     self?.stopReelAnimation()
@@ -122,7 +124,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupPopover() {
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 320, height: 400)
+        popover.contentSize = NSSize(width: 340, height: 340)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
             rootView: MenuBarView(onOpenSettings: { [weak self] in self?.openSettings() })

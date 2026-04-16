@@ -31,7 +31,7 @@ final class ControlBarController {
 
     private func handle(_ state: RecordingState) {
         switch state {
-        case .countdown, .recording, .paused:
+        case .staged, .countdown, .recording, .paused:
             showPanel()
         case .idle, .finishing:
             hidePanel()

@@ -15,16 +15,24 @@ struct ControlBarView: View {
         return false
     }
 
+    private var isStaged: Bool {
+        if case .staged = session.state { return true }
+        return false
+    }
+
     var body: some View {
         ZStack {
             // ── Sizing ghost ──────────────────────────────────────────────
             // Always rendered but never visible — keeps the pill at a stable
-            // width/height so there's no layout jump when the countdown ends.
+            // width/height so there's no layout jump between states.
             recordingControls.hidden()
 
             // ── Visible content ───────────────────────────────────────────
             if case .countdown(let n) = session.state {
                 countdownContent(n)
+                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
+            } else if case .staged = session.state {
+                stagedControls
                     .transition(.opacity.combined(with: .scale(scale: 0.85)))
             } else {
                 recordingControls
@@ -42,6 +50,54 @@ struct ControlBarView: View {
             }
         }
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+    }
+
+    // MARK: - Staged (ready-to-record)
+
+    /// Webcam config + start/cancel — sized by the `recordingControls` ghost so
+    /// the pill never jumps when transitioning into the recording state.
+    private var stagedControls: some View {
+        HStack(spacing: 14) {
+
+            // — Webcam toggle ──────────────────────────────────────────────
+            Toggle(isOn: $session.bubbleEnabled) {
+                Image(systemName: "camera.fill")
+            }
+            .toggleStyle(.button)
+            .help(session.bubbleEnabled ? "Hide webcam" : "Show webcam")
+
+            // — Bubble size (only when webcam is on) ───────────────────────
+            if session.bubbleEnabled {
+                Picker("Size", selection: $session.bubbleSize) {
+                    ForEach(BubbleSize.allCases, id: \.self) {
+                        Text($0.rawValue).tag($0)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 72)
+            }
+
+            Spacer()
+
+            // — Mic + VU meter ─────────────────────────────────────────────
+            HStack(spacing: 6) {
+                Image(systemName: "mic.fill")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                VUMeterView(level: session.micLevel)
+            }
+
+            // — Record ─────────────────────────────────────────────────────
+            BarButton(icon: "record.circle.fill", foreground: .red, help: "Start recording") {
+                Task { try? await session.startRecording() }
+            }
+
+            // — Cancel ─────────────────────────────────────────────────────
+            BarButton(icon: "trash.fill", foreground: .secondary, help: "Cancel") {
+                session.cancelStage()
+            }
+        }
     }
 
     // MARK: - Countdown
