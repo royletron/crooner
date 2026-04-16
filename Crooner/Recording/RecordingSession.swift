@@ -1,7 +1,7 @@
 import AVFoundation
 import Combine
 import SwiftUI
-import UserNotifications
+@preconcurrency import UserNotifications
 
 // MARK: - State
 
