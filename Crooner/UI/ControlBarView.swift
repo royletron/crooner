@@ -2,14 +2,70 @@ import SwiftUI
 
 /// The compact pill-shaped bar that floats above the screen during recording.
 ///
-/// Shows: recording indicator + elapsed timer | pause/resume | mic mute | stop
+/// During countdown  → red pill with a large animated number.
+/// During recording  → indicator + timer | pause | mic + VU meter | stop.
+///
+/// Both states are rendered (the recording controls act as an invisible sizer)
+/// so the pill never changes dimensions between states.
 struct ControlBarView: View {
     @ObservedObject var session: RecordingSession
 
+    private var isCountdown: Bool {
+        if case .countdown = session.state { return true }
+        return false
+    }
+
     var body: some View {
+        ZStack {
+            // ── Sizing ghost ──────────────────────────────────────────────
+            // Always rendered but never visible — keeps the pill at a stable
+            // width/height so there's no layout jump when the countdown ends.
+            recordingControls.hidden()
+
+            // ── Visible content ───────────────────────────────────────────
+            if case .countdown(let n) = session.state {
+                countdownContent(n)
+                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
+            } else {
+                recordingControls
+                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isCountdown)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background {
+            if isCountdown {
+                Capsule().fill(Color.red.opacity(0.88))
+            } else {
+                Capsule().fill(.regularMaterial)
+            }
+        }
+        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+    }
+
+    // MARK: - Countdown
+
+    @ViewBuilder
+    private func countdownContent(_ remaining: Int) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "record.circle.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
+            Text("\(remaining)")
+                .font(.system(.callout, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+        }
+    }
+
+    // MARK: - Recording controls
+
+    private var recordingControls: some View {
         HStack(spacing: 14) {
 
-            // — Indicator + timer ————————————————————————————————————
+            // — Indicator + timer ─────────────────────────────────────────
             HStack(spacing: 6) {
                 Circle()
                     .fill(indicatorColor)
@@ -22,36 +78,31 @@ struct ControlBarView: View {
 
             Divider().frame(height: 18)
 
-            // — Pause / Resume ———————————————————————————————————————
+            // — Pause / Resume ────────────────────────────────────────────
             BarButton(
-                icon:   pauseIcon,
-                help:   session.state == .paused ? "Resume" : "Pause"
+                icon: pauseIcon,
+                help: session.state == .paused ? "Resume" : "Pause"
             ) {
-                if case .paused = session.state {
-                    session.resumeRecording()
-                } else {
-                    session.pauseRecording()
-                }
+                if case .paused = session.state { session.resumeRecording() }
+                else { session.pauseRecording() }
             }
 
-            // — Mic mute ————————————————————————————————————————————
-            BarButton(
-                icon:       session.isMuted ? "mic.slash.fill" : "mic.fill",
-                foreground: session.isMuted ? .red : .primary,
-                help:       session.isMuted ? "Unmute microphone" : "Mute microphone"
-            ) {
-                session.muteToggle()
+            // — Mic mute + VU meter ───────────────────────────────────────
+            HStack(spacing: 6) {
+                BarButton(
+                    icon:       session.isMuted ? "mic.slash.fill" : "mic.fill",
+                    foreground: session.isMuted ? .red : .primary,
+                    help:       session.isMuted ? "Unmute microphone" : "Mute microphone"
+                ) { session.muteToggle() }
+
+                VUMeterView(level: session.isMuted ? 0 : session.micLevel)
             }
 
-            // — Stop ————————————————————————————————————————————————
+            // — Stop ───────────────────────────────────────────────────────
             BarButton(icon: "stop.fill", foreground: .red, help: "Stop recording") {
                 Task { try? await session.stopRecording() }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, in: Capsule())
-        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
     }
 
     // MARK: - Helpers

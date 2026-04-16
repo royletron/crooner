@@ -31,12 +31,10 @@ final class ControlBarController {
 
     private func handle(_ state: RecordingState) {
         switch state {
-        case .recording, .paused:
+        case .countdown, .recording, .paused:
             showPanel()
         case .idle, .finishing:
             hidePanel()
-        case .countdown:
-            break   // show nothing during countdown; button label handles that
         }
     }
 
@@ -84,18 +82,21 @@ final class ControlBarController {
 
     // MARK: - Positioning
 
-    /// Bottom-centre of the captured area, 40 pt above the edge.
+    /// Top-centre of the screen, just below the menu bar.
+    /// Using the screen's visibleFrame keeps the pill clear of the menu bar
+    /// and the Dock (which sits at the bottom).
     private func barOrigin(size: CGSize) -> CGPoint {
-        let area: CGRect
-        if let source = session?.selectedSource,
-           let frame  = source.appKitScreenFrame() {
-            area = frame
-        } else {
-            area = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1280, height: 800)
-        }
+        // Pick the screen that contains the recorded source, fall back to main.
+        let sourceFrame = session?.selectedSource?.appKitScreenFrame()
+        let screen = sourceFrame
+            .flatMap { f in NSScreen.screens.first { $0.frame.contains(f.origin) } }
+            ?? NSScreen.main
+            ?? NSScreen.screens[0]
+
+        let visible = screen.visibleFrame
         return CGPoint(
-            x: area.midX - size.width  / 2,
-            y: area.minY + 40
+            x: visible.midX - size.width  / 2,
+            y: visible.maxY - size.height - 8   // 8 pt gap below menu bar
         )
     }
 }

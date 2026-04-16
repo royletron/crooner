@@ -55,6 +55,7 @@ final class RecordingSession: ObservableObject {
     @Published private(set) var audioSources:        [AudioSource]  = []
     @Published private(set) var isMuted:             Bool           = false
     @Published private(set) var lastRecordingURL:    URL?
+    @Published private(set) var micLevel:            Float          = 0
 
     // MARK: - Engine references (nil between recordings)
 
@@ -136,6 +137,9 @@ final class RecordingSession: ObservableObject {
             let sysVol = ud.object(forKey: AppStorageKey.sysAudioVolume) as? Double ?? 1
             mixer.setVolume(Float(micVol), for: .microphone)
             mixer.setVolume(Float(sysVol), for: .systemAudio)
+
+            // Forward mic level updates to the published property for the VU meter.
+            mixer.micLevelHandler = { [weak self] level in self?.micLevel = level }
 
             // Route system audio samples from the screen engine into the mixer.
             screen.audioBufferHandler = { [weak mixer] buffer in
@@ -317,6 +321,7 @@ final class RecordingSession: ObservableObject {
         audioMixer   = nil
         compositor   = nil
         fileWriter   = nil
+        micLevel     = 0
     }
 
     // MARK: - Private: notification
