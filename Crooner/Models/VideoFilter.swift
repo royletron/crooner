@@ -4,6 +4,7 @@ enum VideoFilter: String, CaseIterable {
     case noir         = "Noir"
     case sepia        = "Sepia"
     case oldMovie     = "Old Movie"
+    case psychedelic  = "Psychedelic"
     case vhs          = "VHS"
     case thermal      = "Thermal"
     case neonNoir     = "Neon Noir"

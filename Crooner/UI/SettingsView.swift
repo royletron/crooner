@@ -239,9 +239,10 @@ private struct FiltersTab: View {
             (.vhs,      "Muted colours, scanlines, warm cast, edge vignette."),
         ]),
         FilterGroup(title: "Colour", filters: [
-            (.thermal,  "Luminance mapped to a blue→red infrared heat palette."),
-            (.neonNoir, "Noir base with bloom glow and a blue-purple tint."),
-            (.comic,    "Posterised flat colours — graphic novel panel."),
+            (.psychedelic, "Cycling rainbow hues, hyper-saturation, and breathing bloom."),
+            (.thermal,     "Luminance mapped to a blue→red infrared heat palette."),
+            (.neonNoir,    "Noir base with bloom glow and a blue-purple tint."),
+            (.comic,       "Posterised flat colours — graphic novel panel."),
         ]),
         FilterGroup(title: "Style", filters: [
             (.glitch,       "Periodic RGB channel splits and chromatic aberration."),

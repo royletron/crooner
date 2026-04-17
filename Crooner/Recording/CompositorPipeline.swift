@@ -381,10 +381,13 @@ actor CompositorPipeline {
 private final class VideoFilterEngine {
 
     // Reusable filter objects — never reallocated at frame rate.
-    private let noir       = CIFilter(name: "CIPhotoEffectNoir")
-    private let sepia      = CIFilter(name: "CISepiaTone")
-    private let vignette   = CIFilter(name: "CIVignette")
-    private let colorCtrl  = CIFilter(name: "CIColorControls")
+    private let noir         = CIFilter(name: "CIPhotoEffectNoir")
+    private let sepia        = CIFilter(name: "CISepiaTone")
+    private let vignette     = CIFilter(name: "CIVignette")
+    private let colorCtrl    = CIFilter(name: "CIColorControls")
+    private let hueRotate    = CIFilter(name: "CIHueAdjust")
+    private let psychSat     = CIFilter(name: "CIColorControls")
+    private let bloom        = CIFilter(name: "CIBloom")
 
     // VHS
     private let vhsColor        = CIFilter(name: "CIColorControls")
@@ -457,6 +460,7 @@ private final class VideoFilterEngine {
         case .noir:         return applyNoir(image)
         case .sepia:        return applySepia(image, intensity: 0.85)
         case .oldMovie:     return applyOldMovie(image, time: time)
+        case .psychedelic:  return applyPsychedelic(image, time: time)
         case .vhs:          return applyVHS(image, time: time)
         case .thermal:      return applyThermal(image)
         case .neonNoir:     return applyNeonNoir(image)
@@ -757,6 +761,28 @@ private final class VideoFilterEngine {
         hcGamma?.setValue(result,        forKey: kCIInputImageKey)
         hcGamma?.setValue(Float(0.85),   forKey: "inputPower")
         result = hcGamma?.outputImage ?? result
+
+        return result
+    }
+
+    // MARK: - Psychedelic
+
+    private func applyPsychedelic(_ image: CIImage, time: CFTimeInterval) -> CIImage {
+        hueRotate?.setValue(image, forKey: kCIInputImageKey)
+        hueRotate?.setValue(Float(time * .pi / 2.0), forKey: "inputAngle")
+        var result = hueRotate?.outputImage ?? image
+
+        psychSat?.setValue(result,      forKey: kCIInputImageKey)
+        psychSat?.setValue(Float(0.0),  forKey: "inputBrightness")
+        psychSat?.setValue(Float(1.15), forKey: "inputContrast")
+        psychSat?.setValue(Float(3.0),  forKey: "inputSaturation")
+        result = psychSat?.outputImage ?? result
+
+        let breathe = Float(sin(time * 1.3) * 0.5 + 1.5)
+        bloom?.setValue(result,       forKey: kCIInputImageKey)
+        bloom?.setValue(breathe * 12, forKey: "inputRadius")
+        bloom?.setValue(Float(0.8),   forKey: "inputIntensity")
+        result = bloom?.outputImage ?? result
 
         return result
     }
