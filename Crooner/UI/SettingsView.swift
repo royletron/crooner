@@ -29,7 +29,7 @@ struct SettingsView: View {
             GeneralTab()
                 .tabItem { Label("General", systemImage: "gearshape") }
         }
-        .frame(width: 420, height: 320)
+        .frame(width: 420, height: 360)
         .padding(20)
     }
 }
@@ -220,34 +220,85 @@ private struct EffectsTab: View {
 private struct FiltersTab: View {
     @AppStorage(AppStorageKey.videoFilter) private var filterRaw = VideoFilter.none.rawValue
 
+    private var selected: VideoFilter { VideoFilter(rawValue: filterRaw) ?? .none }
+
+    private struct FilterGroup: Identifiable {
+        let id = UUID()
+        let title: String
+        let filters: [(VideoFilter, String)]
+    }
+
+    private let groups: [FilterGroup] = [
+        FilterGroup(title: "", filters: [
+            (.none, "No filter applied."),
+        ]),
+        FilterGroup(title: "Vintage", filters: [
+            (.noir,     "Classic black-and-white with lifted contrast."),
+            (.sepia,    "Warm sepia tone, like an old photograph."),
+            (.oldMovie, "Sepia + grain + flickering vignette — full vintage."),
+            (.vhs,      "Muted colours, scanlines, warm cast, edge vignette."),
+        ]),
+        FilterGroup(title: "Colour", filters: [
+            (.psychedelic, "Cycling rainbow hues, hyper-saturation, and breathing bloom."),
+            (.thermal,     "Luminance mapped to a blue→red infrared heat palette."),
+            (.neonNoir,    "Noir base with bloom glow and a blue-purple tint."),
+            (.comic,       "Posterised flat colours — graphic novel panel."),
+        ]),
+        FilterGroup(title: "Style", filters: [
+            (.glitch,       "Periodic RGB channel splits and chromatic aberration."),
+            (.dream,        "Soft bloom haze with lifted blacks and cool tones."),
+            (.focus,        "Sharpened centre with a soft vignette."),
+            (.highContrast, "Punchy blacks, bright whites, subdued colour."),
+        ]),
+    ]
+
     var body: some View {
         Form {
-            Section {
-                Picker("Preset", selection: $filterRaw) {
-                    ForEach(VideoFilter.allCases, id: \.rawValue) { f in
-                        Text(f.label).tag(f.rawValue)
+            ForEach(groups) { group in
+                Section(group.title) {
+                    ForEach(group.filters, id: \.0.rawValue) { filter, desc in
+                        FilterRow(
+                            label: filter.label,
+                            desc: desc,
+                            isSelected: selected == filter
+                        ) { filterRaw = filter.rawValue }
                     }
                 }
-                .pickerStyle(.radioGroup)
-            } footer: {
-                Group {
-                    switch VideoFilter(rawValue: filterRaw) ?? .none {
-                    case .none:
-                        Text("No filter applied.")
-                    case .noir:
-                        Text("Classic black-and-white with lifted contrast.")
-                    case .sepia:
-                        Text("Warm sepia tone, like an old photograph.")
-                    case .oldMovie:
-                        Text("Sepia + film grain + flickering vignette — full vintage look.")
-                    case .psychedelic:
-                        Text("Continuously cycling rainbow hues, hyper-saturated colours, and a bloom glow.")
-                    }
-                }
-                .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+private struct FilterRow: View {
+    let label: String
+    let desc: String
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label)
+                        .font(.callout)
+                        .fontWeight(isSelected ? .semibold : .regular)
+                        .foregroundStyle(.primary)
+                    Text(desc)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.accentColor)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

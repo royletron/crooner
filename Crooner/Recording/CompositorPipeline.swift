@@ -389,16 +389,86 @@ private final class VideoFilterEngine {
     private let psychSat     = CIFilter(name: "CIColorControls")
     private let bloom        = CIFilter(name: "CIBloom")
 
+    // VHS
+    private let vhsColor        = CIFilter(name: "CIColorControls")
+    private let vhsCast         = CIFilter(name: "CIColorMatrix")
+    private let vhsVig          = CIFilter(name: "CIVignette")
+    private let vhsScanBlend    = CIFilter(name: "CISourceOverCompositing")
+    private let vhsAffineTile   = CIFilter(name: "CIAffineTile")
+
+    // Thermal
+    private let thermalMap      = CIFilter(name: "CIColorMap")
+    private lazy var thermalGradient: CIImage? = makeThermalGradient()
+
+    // Neon Noir
+    private let neonNoir        = CIFilter(name: "CIPhotoEffectNoir")
+    private let neonShadow      = CIFilter(name: "CIHighlightShadowAdjust")
+    private let neonBloom       = CIFilter(name: "CIBloom")
+    private let neonTint        = CIFilter(name: "CIColorMatrix")
+
+    // Comic
+    private let comicPost       = CIFilter(name: "CIPosterize")
+    private let comicColor      = CIFilter(name: "CIColorControls")
+    private let comicSharp      = CIFilter(name: "CIUnsharpMask")
+
+    // Glitch — channel extraction + addition
+    private let glitchR         = CIFilter(name: "CIColorMatrix")
+    private let glitchG         = CIFilter(name: "CIColorMatrix")
+    private let glitchB         = CIFilter(name: "CIColorMatrix")
+    private let glitchAdd1      = CIFilter(name: "CIAdditionCompositing")
+    private let glitchAdd2      = CIFilter(name: "CIAdditionCompositing")
+
+    // Dream
+    private let dreamBlur       = CIFilter(name: "CIGaussianBlur")
+    private let dreamAlpha      = CIFilter(name: "CIColorMatrix")
+    private let dreamBlend      = CIFilter(name: "CISourceOverCompositing")
+    private let dreamTint       = CIFilter(name: "CIColorMatrix")
+
+    // Focus
+    private let focusSharp      = CIFilter(name: "CIUnsharpMask")
+    private let focusVig        = CIFilter(name: "CIVignette")
+
+    // High Contrast
+    private let hcColor         = CIFilter(name: "CIColorControls")
+    private let hcGamma         = CIFilter(name: "CIGammaAdjust")
+
+    /// Scanline tile: 1×2 pixels — bottom row clear, top row dark.
+    /// Tiled via CIAffineTile to cover any frame size with zero extra allocation.
+    private lazy var scanlineTile: CIImage? = {
+        let pixels: [UInt8] = [
+            0, 0, 0,   0,   // transparent row
+            0, 0, 0,  89,   // dark ~35 % opacity
+        ]
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let cg = CGImage(width: 1, height: 2,
+                               bitsPerComponent: 8, bitsPerPixel: 32,
+                               bytesPerRow: 4,
+                               space: CGColorSpaceCreateDeviceRGB(),
+                               bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                               provider: provider, decode: nil,
+                               shouldInterpolate: false, intent: .defaultIntent)
+        else { return nil }
+        return CIImage(cgImage: cg)
+    }()
+
     /// Cached output of `CIRandomGenerator` — translated per frame for temporal grain.
     private lazy var noiseBase: CIImage? = CIFilter(name: "CIRandomGenerator")?.outputImage
 
     func apply(_ image: CIImage, filter: VideoFilter, time: CFTimeInterval) -> CIImage {
         switch filter {
-        case .none:        return image
-        case .noir:        return applyNoir(image)
-        case .sepia:       return applySepia(image, intensity: 0.85)
-        case .oldMovie:    return applyOldMovie(image, time: time)
-        case .psychedelic: return applyPsychedelic(image, time: time)
+        case .none:         return image
+        case .noir:         return applyNoir(image)
+        case .sepia:        return applySepia(image, intensity: 0.85)
+        case .oldMovie:     return applyOldMovie(image, time: time)
+        case .psychedelic:  return applyPsychedelic(image, time: time)
+        case .vhs:          return applyVHS(image, time: time)
+        case .thermal:      return applyThermal(image)
+        case .neonNoir:     return applyNeonNoir(image)
+        case .comic:        return applyComic(image)
+        case .glitch:       return applyGlitch(image, time: time)
+        case .dream:        return applyDream(image)
+        case .focus:        return applyFocus(image)
+        case .highContrast: return applyHighContrast(image)
         }
     }
 
@@ -443,24 +513,275 @@ private final class VideoFilterEngine {
         return result
     }
 
+    // MARK: - VHS
+
+    private func applyVHS(_ image: CIImage, time: CFTimeInterval) -> CIImage {
+        // 1. Muted colours, slight warmth, reduced contrast
+        vhsColor?.setValue(image,       forKey: kCIInputImageKey)
+        vhsColor?.setValue(Float(0.75), forKey: "inputSaturation")
+        vhsColor?.setValue(Float(0.03), forKey: "inputBrightness")
+        vhsColor?.setValue(Float(0.92), forKey: "inputContrast")
+        var result = vhsColor?.outputImage ?? image
+
+        // 2. Warm yellow-green cast (boosted G, attenuated B)
+        vhsCast?.setValue(result, forKey: kCIInputImageKey)
+        vhsCast?.setValue(CIVector(x: 1.02, y: 0,    z: 0,    w: 0), forKey: "inputRVector")
+        vhsCast?.setValue(CIVector(x: 0,    y: 1.05, z: 0,    w: 0), forKey: "inputGVector")
+        vhsCast?.setValue(CIVector(x: 0,    y: 0,    z: 0.88, w: 0), forKey: "inputBVector")
+        vhsCast?.setValue(CIVector(x: 0,    y: 0,    z: 0,    w: 1), forKey: "inputAVector")
+        vhsCast?.setValue(CIVector(x: 0.02, y: 0.01, z: 0,    w: 0), forKey: "inputBiasVector")
+        result = vhsCast?.outputImage ?? result
+
+        // 3. Edge vignette
+        vhsVig?.setValue(result,      forKey: kCIInputImageKey)
+        vhsVig?.setValue(Float(1.0),  forKey: "inputIntensity")
+        vhsVig?.setValue(Float(1.6),  forKey: "inputRadius")
+        result = vhsVig?.outputImage ?? result
+
+        // 4. Horizontal scanlines via a tiled 1×2 pattern
+        if let tile = scanlineTile {
+            vhsAffineTile?.setValue(tile, forKey: kCIInputImageKey)
+            if let tiled = vhsAffineTile?.outputImage?.cropped(to: image.extent) {
+                vhsScanBlend?.setValue(tiled,   forKey: kCIInputImageKey)
+                vhsScanBlend?.setValue(result,  forKey: kCIInputBackgroundImageKey)
+                result = vhsScanBlend?.outputImage ?? result
+            }
+        }
+
+        return result
+    }
+
+    // MARK: - Thermal
+
+    private func applyThermal(_ image: CIImage) -> CIImage {
+        thermalMap?.setValue(image,            forKey: kCIInputImageKey)
+        thermalMap?.setValue(thermalGradient,  forKey: "inputGradientImage")
+        return thermalMap?.outputImage ?? image
+    }
+
+    /// 256×1 gradient image: black → blue → cyan → green → yellow → red → white.
+    private func makeThermalGradient() -> CIImage? {
+        let w = 256
+        var px = [UInt8](repeating: 0, count: w * 4)
+        for i in 0..<w {
+            let t = Float(i) / Float(w - 1)
+            let (r, g, b): (Float, Float, Float)
+            switch t {
+            case ..<0.15:
+                let f = t / 0.15;           (r, g, b) = (0, 0, f)
+            case 0.15..<0.35:
+                let f = (t - 0.15) / 0.20;  (r, g, b) = (0, f, 1)
+            case 0.35..<0.55:
+                let f = (t - 0.35) / 0.20;  (r, g, b) = (0, 1, 1 - f)
+            case 0.55..<0.75:
+                let f = (t - 0.55) / 0.20;  (r, g, b) = (f, 1, 0)
+            case 0.75..<0.90:
+                let f = (t - 0.75) / 0.15;  (r, g, b) = (1, 1 - f, 0)
+            default:
+                let f = min(1, (t - 0.90) / 0.10); (r, g, b) = (1, f, f)
+            }
+            px[i * 4 + 0] = UInt8(min(255, Int(r * 255)))
+            px[i * 4 + 1] = UInt8(min(255, Int(g * 255)))
+            px[i * 4 + 2] = UInt8(min(255, Int(b * 255)))
+            px[i * 4 + 3] = 255
+        }
+        guard let provider = CGDataProvider(data: Data(px) as CFData),
+              let cg = CGImage(width: w, height: 1,
+                               bitsPerComponent: 8, bitsPerPixel: 32,
+                               bytesPerRow: w * 4,
+                               space: CGColorSpaceCreateDeviceRGB(),
+                               bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                               provider: provider, decode: nil,
+                               shouldInterpolate: true, intent: .defaultIntent)
+        else { return nil }
+        return CIImage(cgImage: cg)
+    }
+
+    // MARK: - Neon Noir
+
+    private func applyNeonNoir(_ image: CIImage) -> CIImage {
+        // 1. Convert to B&W
+        neonNoir?.setValue(image, forKey: kCIInputImageKey)
+        var result = neonNoir?.outputImage ?? image
+
+        // 2. Crush shadows, lift highlights
+        neonShadow?.setValue(result,       forKey: kCIInputImageKey)
+        neonShadow?.setValue(Float(-0.5),  forKey: "inputShadowAmount")
+        neonShadow?.setValue(Float(0.25),  forKey: "inputHighlightAmount")
+        result = neonShadow?.outputImage ?? result
+
+        // 3. Bloom — glow on bright edges
+        neonBloom?.setValue(result,      forKey: kCIInputImageKey)
+        neonBloom?.setValue(Float(8),    forKey: "inputRadius")
+        neonBloom?.setValue(Float(1.0),  forKey: "inputIntensity")
+        result = neonBloom?.outputImage ?? result
+
+        // 4. Blue-purple tint via colour matrix
+        neonTint?.setValue(result, forKey: kCIInputImageKey)
+        neonTint?.setValue(CIVector(x: 0.88, y: 0,    z: 0,    w: 0), forKey: "inputRVector")
+        neonTint?.setValue(CIVector(x: 0,    y: 0.82, z: 0,    w: 0), forKey: "inputGVector")
+        neonTint?.setValue(CIVector(x: 0.12, y: 0.12, z: 1.1,  w: 0), forKey: "inputBVector")
+        neonTint?.setValue(CIVector(x: 0,    y: 0,    z: 0,    w: 1), forKey: "inputAVector")
+        neonTint?.setValue(CIVector(x: 0,    y: 0,    z: 0.06, w: 0), forKey: "inputBiasVector")
+        result = neonTint?.outputImage ?? result
+
+        return result
+    }
+
+    // MARK: - Comic
+
+    private func applyComic(_ image: CIImage) -> CIImage {
+        // 1. Posterise — reduce to flat colour bands
+        comicPost?.setValue(image,      forKey: kCIInputImageKey)
+        comicPost?.setValue(Float(6),   forKey: "inputLevels")
+        var result = comicPost?.outputImage ?? image
+
+        // 2. Crank saturation + contrast for graphic novel pop
+        comicColor?.setValue(result,       forKey: kCIInputImageKey)
+        comicColor?.setValue(Float(1.8),   forKey: "inputSaturation")
+        comicColor?.setValue(Float(1.2),   forKey: "inputContrast")
+        comicColor?.setValue(Float(0),     forKey: "inputBrightness")
+        result = comicColor?.outputImage ?? result
+
+        // 3. Sharpen edges between colour areas
+        comicSharp?.setValue(result,       forKey: kCIInputImageKey)
+        comicSharp?.setValue(Float(2.5),   forKey: "inputRadius")
+        comicSharp?.setValue(Float(0.65),  forKey: "inputIntensity")
+        comicSharp?.setValue(Float(0.04),  forKey: "inputThreshold")
+        result = comicSharp?.outputImage ?? result
+
+        return result
+    }
+
+    // MARK: - Glitch
+
+    /// Separates R, G, B into three extracted CIImages, offsets R right and B
+    /// left by amounts that spike periodically, then recombines with additive
+    /// compositing.  Using alpha=1 per channel and CIAdditionCompositing is
+    /// safe because the three channel values for any pixel sum to ≤ 1.0.
+    private func applyGlitch(_ image: CIImage, time: CFTimeInterval) -> CIImage {
+        let phase       = time.truncatingRemainder(dividingBy: 2.8)
+        let isGlitching = phase < 0.08 || (phase > 1.3 && phase < 1.38)
+        let xR: CGFloat = isGlitching ? CGFloat(sin(time * 97) * 12 + 14)
+                                      : CGFloat(sin(time * 7.3) * 1.5)
+        let xB: CGFloat = isGlitching ? CGFloat(sin(time * 73) * 10 - 12)
+                                      : CGFloat(sin(time * 5.1) * -1.5)
+
+        func extract(_ filter: CIFilter?,
+                     r: CGFloat, g: CGFloat, b: CGFloat,
+                     dx: CGFloat) -> CIImage {
+            filter?.setValue(image, forKey: kCIInputImageKey)
+            filter?.setValue(CIVector(x: r, y: 0, z: 0, w: 0), forKey: "inputRVector")
+            filter?.setValue(CIVector(x: 0, y: g, z: 0, w: 0), forKey: "inputGVector")
+            filter?.setValue(CIVector(x: 0, y: 0, z: b, w: 0), forKey: "inputBVector")
+            filter?.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+            filter?.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBiasVector")
+            return (filter?.outputImage ?? image)
+                .transformed(by: .init(translationX: dx, y: 0))
+                .cropped(to: image.extent)
+        }
+
+        let red   = extract(glitchR, r: 1, g: 0, b: 0, dx:  xR)
+        let green = extract(glitchG, r: 0, g: 1, b: 0, dx:  0)
+        let blue  = extract(glitchB, r: 0, g: 0, b: 1, dx:  xB)
+
+        glitchAdd1?.setValue(red,   forKey: kCIInputImageKey)
+        glitchAdd1?.setValue(green, forKey: kCIInputBackgroundImageKey)
+        let rg = glitchAdd1?.outputImage ?? image
+
+        glitchAdd2?.setValue(blue, forKey: kCIInputImageKey)
+        glitchAdd2?.setValue(rg,   forKey: kCIInputBackgroundImageKey)
+        return glitchAdd2?.outputImage ?? image
+    }
+
+    // MARK: - Dream
+
+    private func applyDream(_ image: CIImage) -> CIImage {
+        // 1. Heavy gaussian blur, cropped to prevent edge transparency
+        dreamBlur?.setValue(image,      forKey: kCIInputImageKey)
+        dreamBlur?.setValue(Float(15),  forKey: "inputRadius")
+        let blurred = (dreamBlur?.outputImage ?? image).cropped(to: image.extent)
+
+        // 2. Reduce blurred layer to 40 % opacity so it ghosts over the original
+        dreamAlpha?.setValue(blurred, forKey: kCIInputImageKey)
+        dreamAlpha?.setValue(CIVector(x: 1, y: 0, z: 0, w: 0), forKey: "inputRVector")
+        dreamAlpha?.setValue(CIVector(x: 0, y: 1, z: 0, w: 0), forKey: "inputGVector")
+        dreamAlpha?.setValue(CIVector(x: 0, y: 0, z: 1, w: 0), forKey: "inputBVector")
+        dreamAlpha?.setValue(CIVector(x: 0, y: 0, z: 0, w: 0.4), forKey: "inputAVector")
+        dreamAlpha?.setValue(CIVector(x: 0, y: 0, z: 0, w: 0),   forKey: "inputBiasVector")
+        let ghostBlur = dreamAlpha?.outputImage ?? blurred
+
+        // 3. Composite ghosted blur over original
+        dreamBlend?.setValue(ghostBlur, forKey: kCIInputImageKey)
+        dreamBlend?.setValue(image,     forKey: kCIInputBackgroundImageKey)
+        var result = dreamBlend?.outputImage ?? image
+
+        // 4. Cool blue-grey tint + lifted blacks
+        dreamTint?.setValue(result, forKey: kCIInputImageKey)
+        dreamTint?.setValue(CIVector(x: 0.92, y: 0,    z: 0,    w: 0), forKey: "inputRVector")
+        dreamTint?.setValue(CIVector(x: 0,    y: 0.94, z: 0,    w: 0), forKey: "inputGVector")
+        dreamTint?.setValue(CIVector(x: 0.05, y: 0.05, z: 1.08, w: 0), forKey: "inputBVector")
+        dreamTint?.setValue(CIVector(x: 0,    y: 0,    z: 0,    w: 1), forKey: "inputAVector")
+        dreamTint?.setValue(CIVector(x: 0.04, y: 0.04, z: 0.05, w: 0), forKey: "inputBiasVector")
+        result = dreamTint?.outputImage ?? result
+
+        return result
+    }
+
+    // MARK: - Focus
+
+    private func applyFocus(_ image: CIImage) -> CIImage {
+        // 1. Unsharp mask — crisp, punchy detail
+        focusSharp?.setValue(image,       forKey: kCIInputImageKey)
+        focusSharp?.setValue(Float(3.0),  forKey: "inputRadius")
+        focusSharp?.setValue(Float(0.65), forKey: "inputIntensity")
+        focusSharp?.setValue(Float(0.03), forKey: "inputThreshold")
+        var result = focusSharp?.outputImage ?? image
+
+        // 2. Vignette — soft dark edges pull focus to the centre
+        focusVig?.setValue(result,       forKey: kCIInputImageKey)
+        focusVig?.setValue(Float(0.9),   forKey: "inputIntensity")
+        focusVig?.setValue(Float(1.8),   forKey: "inputRadius")
+        result = focusVig?.outputImage ?? result
+
+        return result
+    }
+
+    // MARK: - High Contrast
+
+    private func applyHighContrast(_ image: CIImage) -> CIImage {
+        // 1. Punch contrast, pull back saturation, minimal brightness trim
+        hcColor?.setValue(image,         forKey: kCIInputImageKey)
+        hcColor?.setValue(Float(1.5),    forKey: "inputContrast")
+        hcColor?.setValue(Float(0.65),   forKey: "inputSaturation")
+        hcColor?.setValue(Float(-0.03),  forKey: "inputBrightness")
+        var result = hcColor?.outputImage ?? image
+
+        // 2. Gamma < 1 shifts the midpoint darker — blacks deepen without clipping
+        hcGamma?.setValue(result,        forKey: kCIInputImageKey)
+        hcGamma?.setValue(Float(0.85),   forKey: "inputPower")
+        result = hcGamma?.outputImage ?? result
+
+        return result
+    }
+
+    // MARK: - Psychedelic
+
     private func applyPsychedelic(_ image: CIImage, time: CFTimeInterval) -> CIImage {
-        // 1. Continuously rotate hue — full 360° every 4 seconds.
-        hueRotate?.setValue(image,          forKey: kCIInputImageKey)
+        hueRotate?.setValue(image, forKey: kCIInputImageKey)
         hueRotate?.setValue(Float(time * .pi / 2.0), forKey: "inputAngle")
         var result = hueRotate?.outputImage ?? image
 
-        // 2. Push saturation to the max and bump contrast slightly.
-        psychSat?.setValue(result,     forKey: kCIInputImageKey)
-        psychSat?.setValue(Float(0.0), forKey: "inputBrightness")
+        psychSat?.setValue(result,      forKey: kCIInputImageKey)
+        psychSat?.setValue(Float(0.0),  forKey: "inputBrightness")
         psychSat?.setValue(Float(1.15), forKey: "inputContrast")
-        psychSat?.setValue(Float(3.0), forKey: "inputSaturation")
+        psychSat?.setValue(Float(3.0),  forKey: "inputSaturation")
         result = psychSat?.outputImage ?? result
 
-        // 3. Bloom glow — radius pulses gently so the aura breathes.
-        let breathe = Float(sin(time * 1.3) * 0.5 + 1.5)   // 1.0 … 2.0
-        bloom?.setValue(result,                 forKey: kCIInputImageKey)
-        bloom?.setValue(breathe * 12,           forKey: "inputRadius")
-        bloom?.setValue(Float(0.8),             forKey: "inputIntensity")
+        let breathe = Float(sin(time * 1.3) * 0.5 + 1.5)
+        bloom?.setValue(result,       forKey: kCIInputImageKey)
+        bloom?.setValue(breathe * 12, forKey: "inputRadius")
+        bloom?.setValue(Float(0.8),   forKey: "inputIntensity")
         result = bloom?.outputImage ?? result
 
         return result
