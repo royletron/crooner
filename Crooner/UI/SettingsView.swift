@@ -240,6 +240,8 @@ private struct FiltersTab: View {
                         Text("Warm sepia tone, like an old photograph.")
                     case .oldMovie:
                         Text("Sepia + film grain + flickering vignette — full vintage look.")
+                    case .psychedelic:
+                        Text("Continuously cycling rainbow hues, hyper-saturated colours, and a bloom glow.")
                     }
                 }
                 .foregroundStyle(.secondary)
