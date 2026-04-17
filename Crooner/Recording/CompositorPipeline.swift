@@ -381,20 +381,24 @@ actor CompositorPipeline {
 private final class VideoFilterEngine {
 
     // Reusable filter objects — never reallocated at frame rate.
-    private let noir       = CIFilter(name: "CIPhotoEffectNoir")
-    private let sepia      = CIFilter(name: "CISepiaTone")
-    private let vignette   = CIFilter(name: "CIVignette")
-    private let colorCtrl  = CIFilter(name: "CIColorControls")
+    private let noir         = CIFilter(name: "CIPhotoEffectNoir")
+    private let sepia        = CIFilter(name: "CISepiaTone")
+    private let vignette     = CIFilter(name: "CIVignette")
+    private let colorCtrl    = CIFilter(name: "CIColorControls")
+    private let hueRotate    = CIFilter(name: "CIHueAdjust")
+    private let psychSat     = CIFilter(name: "CIColorControls")
+    private let bloom        = CIFilter(name: "CIBloom")
 
     /// Cached output of `CIRandomGenerator` — translated per frame for temporal grain.
     private lazy var noiseBase: CIImage? = CIFilter(name: "CIRandomGenerator")?.outputImage
 
     func apply(_ image: CIImage, filter: VideoFilter, time: CFTimeInterval) -> CIImage {
         switch filter {
-        case .none:     return image
-        case .noir:     return applyNoir(image)
-        case .sepia:    return applySepia(image, intensity: 0.85)
-        case .oldMovie: return applyOldMovie(image, time: time)
+        case .none:        return image
+        case .noir:        return applyNoir(image)
+        case .sepia:       return applySepia(image, intensity: 0.85)
+        case .oldMovie:    return applyOldMovie(image, time: time)
+        case .psychedelic: return applyPsychedelic(image, time: time)
         }
     }
 
@@ -435,6 +439,29 @@ private final class VideoFilterEngine {
         colorCtrl?.setValue(Float(1.05),     forKey: "inputContrast")
         colorCtrl?.setValue(Float(0.0),      forKey: "inputSaturation")
         result = colorCtrl?.outputImage ?? result
+
+        return result
+    }
+
+    private func applyPsychedelic(_ image: CIImage, time: CFTimeInterval) -> CIImage {
+        // 1. Continuously rotate hue — full 360° every 4 seconds.
+        hueRotate?.setValue(image,          forKey: kCIInputImageKey)
+        hueRotate?.setValue(Float(time * .pi / 2.0), forKey: "inputAngle")
+        var result = hueRotate?.outputImage ?? image
+
+        // 2. Push saturation to the max and bump contrast slightly.
+        psychSat?.setValue(result,     forKey: kCIInputImageKey)
+        psychSat?.setValue(Float(0.0), forKey: "inputBrightness")
+        psychSat?.setValue(Float(1.15), forKey: "inputContrast")
+        psychSat?.setValue(Float(3.0), forKey: "inputSaturation")
+        result = psychSat?.outputImage ?? result
+
+        // 3. Bloom glow — radius pulses gently so the aura breathes.
+        let breathe = Float(sin(time * 1.3) * 0.5 + 1.5)   // 1.0 … 2.0
+        bloom?.setValue(result,                 forKey: kCIInputImageKey)
+        bloom?.setValue(breathe * 12,           forKey: "inputRadius")
+        bloom?.setValue(Float(0.8),             forKey: "inputIntensity")
+        result = bloom?.outputImage ?? result
 
         return result
     }
