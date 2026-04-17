@@ -190,6 +190,10 @@ final class RecordingSession: ObservableObject {
                 bubbleCorner:  bubbleCorner
             )
             await comp.setEffectsEngine(effectsEngine)
+
+            // Apply video filter from settings.
+            let filterRaw = ud.string(forKey: AppStorageKey.videoFilter) ?? VideoFilter.none.rawValue
+            await comp.setVideoFilter(VideoFilter(rawValue: filterRaw) ?? .none)
             let compositorStream = await comp.start(
                 screenStream: screenStream,
                 webcamStream: webcamStream,

@@ -23,4 +23,5 @@ enum AppStorageKey {
     static let mouseTrailEnabled   = "effects.mouseTrailEnabled"   // Bool
     static let clickCirclesEnabled = "effects.clickCirclesEnabled" // Bool
     static let trailEmoji          = "effects.trailEmoji"          // String (single emoji)
+    static let videoFilter         = "effects.videoFilter"         // VideoFilter rawValue (String)
 }

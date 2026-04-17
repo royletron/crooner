@@ -69,10 +69,15 @@ struct EffectParticle: Identifiable {
 
     /// Current position in global AppKit coords accounting for drift (y-up).
     func currentOrigin(at t: CFTimeInterval) -> CGPoint {
-        let age = t - birth
-        return CGPoint(
-            x: origin.x + driftX * age,
-            y: origin.y - driftY * age   // subtract → downward in y-up space
-        )
+        switch kind {
+        case .click:
+            return origin   // pulse expands in place; never drifts
+        case .trail:
+            let age = t - birth
+            return CGPoint(
+                x: origin.x + driftX * age,
+                y: origin.y - driftY * age   // subtract → downward in y-up space
+            )
+        }
     }
 }

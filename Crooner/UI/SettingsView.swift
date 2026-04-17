@@ -23,6 +23,9 @@ struct SettingsView: View {
             EffectsTab()
                 .tabItem { Label("Effects", systemImage: "sparkles") }
 
+            FiltersTab()
+                .tabItem { Label("Filters", systemImage: "camera.filters") }
+
             GeneralTab()
                 .tabItem { Label("General", systemImage: "gearshape") }
         }
@@ -206,6 +209,40 @@ private struct EffectsTab: View {
             } footer: {
                 Text("A ripple circle highlights every left-click.")
                     .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+// MARK: - Filters
+
+private struct FiltersTab: View {
+    @AppStorage(AppStorageKey.videoFilter) private var filterRaw = VideoFilter.none.rawValue
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Preset", selection: $filterRaw) {
+                    ForEach(VideoFilter.allCases, id: \.rawValue) { f in
+                        Text(f.label).tag(f.rawValue)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+            } footer: {
+                Group {
+                    switch VideoFilter(rawValue: filterRaw) ?? .none {
+                    case .none:
+                        Text("No filter applied.")
+                    case .noir:
+                        Text("Classic black-and-white with lifted contrast.")
+                    case .sepia:
+                        Text("Warm sepia tone, like an old photograph.")
+                    case .oldMovie:
+                        Text("Sepia + film grain + flickering vignette — full vintage look.")
+                    }
+                }
+                .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
