@@ -240,6 +240,22 @@ private struct FiltersTab: View {
                         Text("Warm sepia tone, like an old photograph.")
                     case .oldMovie:
                         Text("Sepia + film grain + flickering vignette — full vintage look.")
+                    case .vhs:
+                        Text("Degraded tape look: muted colours, warm cast, scanlines, and edge vignette.")
+                    case .thermal:
+                        Text("False-colour heat map — luminance mapped to a blue-to-red infrared palette.")
+                    case .neonNoir:
+                        Text("Noir base with deep blacks, bloom glow, and a blue-purple tint.")
+                    case .comic:
+                        Text("Posterised flat colours with cranked saturation — graphic novel panel.")
+                    case .glitch:
+                        Text("Periodic RGB channel splits and chromatic aberration, as if the signal is breaking up.")
+                    case .dream:
+                        Text("Soft bloom haze, lifted blacks, and a cool blue-grey tone.")
+                    case .focus:
+                        Text("Sharpened centre with a soft vignette to draw the eye inward.")
+                    case .highContrast:
+                        Text("Punchy blacks, bright whites, and subdued colour — clean and tutorial-ready.")
                     }
                 }
                 .foregroundStyle(.secondary)
