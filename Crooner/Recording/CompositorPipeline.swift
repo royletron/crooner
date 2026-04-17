@@ -27,6 +27,7 @@ actor CompositorPipeline {
     private var bubbleEnabled: Bool        = true
     private var bubbleSize:    BubbleSize   = .medium
     private var bubbleCorner:  BubbleCorner = .bottomRight
+    private var videoFilter:   VideoFilter  = .none
 
     // MARK: - Internals
 
@@ -57,6 +58,8 @@ actor CompositorPipeline {
     private let blendFilter     = CIFilter(name: "CIBlendWithMask")
     private let compositeFilter = CIFilter(name: "CISourceAtopCompositing")
 
+    private let filterEngine    = VideoFilterEngine()
+
     // MARK: - Effects
 
     /// Set by `RecordingSession` immediately after creating the compositor.
@@ -73,6 +76,10 @@ actor CompositorPipeline {
         self.bubbleEnabled = bubbleEnabled
         self.bubbleSize    = bubbleSize
         self.bubbleCorner  = bubbleCorner
+    }
+
+    func setVideoFilter(_ filter: VideoFilter) {
+        videoFilter = filter
     }
 
     /// Start compositing.
@@ -263,6 +270,13 @@ actor CompositorPipeline {
             }
         }
 
+        // — Video filter ———————————————————————————————————————————————————————
+
+        if videoFilter != .none {
+            baseImage = filterEngine.apply(baseImage, filter: videoFilter,
+                                           time: CACurrentMediaTime())
+        }
+
         // — Render to pooled buffer ————————————————————————————————————————————
 
         guard let output = allocateOutputBuffer() else { return screen }
@@ -356,5 +370,105 @@ actor CompositorPipeline {
 
         guard let cgImage = ctx.makeImage() else { return nil }
         return CIImage(cgImage: cgImage)
+    }
+}
+
+// MARK: - Video filter engine
+
+/// Holds reusable `CIFilter` instances and applies them per-frame.
+/// All methods are called from within the `CompositorPipeline` actor so no
+/// additional synchronisation is required.
+private final class VideoFilterEngine {
+
+    // Reusable filter objects — never reallocated at frame rate.
+    private let noir       = CIFilter(name: "CIPhotoEffectNoir")
+    private let sepia      = CIFilter(name: "CISepiaTone")
+    private let vignette   = CIFilter(name: "CIVignette")
+    private let colorCtrl  = CIFilter(name: "CIColorControls")
+
+    /// Cached output of `CIRandomGenerator` — translated per frame for temporal grain.
+    private lazy var noiseBase: CIImage? = CIFilter(name: "CIRandomGenerator")?.outputImage
+
+    func apply(_ image: CIImage, filter: VideoFilter, time: CFTimeInterval) -> CIImage {
+        switch filter {
+        case .none:     return image
+        case .noir:     return applyNoir(image)
+        case .sepia:    return applySepia(image, intensity: 0.85)
+        case .oldMovie: return applyOldMovie(image, time: time)
+        }
+    }
+
+    // MARK: - Presets
+
+    private func applyNoir(_ image: CIImage) -> CIImage {
+        noir?.setValue(image, forKey: kCIInputImageKey)
+        return noir?.outputImage ?? image
+    }
+
+    private func applySepia(_ image: CIImage, intensity: Double) -> CIImage {
+        sepia?.setValue(image, forKey: kCIInputImageKey)
+        sepia?.setValue(intensity, forKey: kCIInputIntensityKey)
+        return sepia?.outputImage ?? image
+    }
+
+    private func applyOldMovie(_ image: CIImage, time: CFTimeInterval) -> CIImage {
+        // 1. Warm sepia desaturation
+        var result = applySepia(image, intensity: 0.65)
+
+        // 2. Film grain (different texture each frame via coordinate jitter)
+        result = addGrain(to: result, extent: image.extent, time: time)
+
+        // 3. Flickering vignette — two sine waves at incommensurable frequencies
+        //    produce an organic, non-repeating flicker.
+        let flicker = sin(time * 8.5)  * 0.07
+                    + sin(time * 3.7)  * 0.05
+                    + sin(time * 23.1) * 0.02
+        vignette?.setValue(result,               forKey: kCIInputImageKey)
+        vignette?.setValue(Float(1.4 + flicker), forKey: "inputIntensity")
+        vignette?.setValue(Float(1.6),            forKey: "inputRadius")
+        result = vignette?.outputImage ?? result
+
+        // 4. Subtle brightness flicker — mimics aging projector lamp
+        let brightFlicker = Float(sin(time * 5.3) * 0.025 + sin(time * 11.7) * 0.015)
+        colorCtrl?.setValue(result,          forKey: kCIInputImageKey)
+        colorCtrl?.setValue(brightFlicker,   forKey: "inputBrightness")
+        colorCtrl?.setValue(Float(1.05),     forKey: "inputContrast")
+        colorCtrl?.setValue(Float(0.0),      forKey: "inputSaturation")
+        result = colorCtrl?.outputImage ?? result
+
+        return result
+    }
+
+    // MARK: - Film grain
+
+    /// Overlays monochromatic noise on `image`.
+    ///
+    /// `CIRandomGenerator` produces a deterministic infinite texture based on
+    /// pixel coordinates.  Translating by a time-derived offset gives a
+    /// different crop each frame, producing temporal grain variation.
+    private func addGrain(to image: CIImage, extent: CGRect, time: CFTimeInterval) -> CIImage {
+        guard let noise = noiseBase else { return image }
+
+        // Integer jitter — wraps in [0, 1023] so we stay on solid texture.
+        let jx = CGFloat((Int(time * 97.0)  * 73)  & 0x3FF)
+        let jy = CGFloat((Int(time * 113.0) * 41)  & 0x3FF)
+
+        // Scale random [0,1] → [0.42, 0.58] — values near 0.5 barely affect
+        // the overlay blend; values at the edges create subtle grain.
+        let grain = noise
+            .transformed(by: CGAffineTransform(translationX: jx, y: jy))
+            .cropped(to: extent)
+            .applyingFilter("CIColorMatrix", parameters: [
+                "inputRVector":    CIVector(x: 0.16, y: 0,    z: 0,    w: 0),
+                "inputGVector":    CIVector(x: 0,    y: 0.16, z: 0,    w: 0),
+                "inputBVector":    CIVector(x: 0,    y: 0,    z: 0.16, w: 0),
+                "inputAVector":    CIVector(x: 0,    y: 0,    z: 0,    w: 1),
+                "inputBiasVector": CIVector(x: 0.42, y: 0.42, z: 0.42, w: 0),
+            ])
+
+        // CIOverlayBlendMode: neutral at 0.5, darkens below, lightens above.
+        return grain.applyingFilter("CIOverlayBlendMode", parameters: [
+            kCIInputBackgroundImageKey: image
+        ])
     }
 }
