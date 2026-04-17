@@ -197,88 +197,77 @@ actor CompositorPipeline {
     ///   5. CISourceAtopCompositing over the screen frame
     ///   6. Render into a CVPixelBufferPool buffer (avoids per-frame allocation)
     private func composite(screen: CVPixelBuffer, outputSize: CGSize) -> CVPixelBuffer {
-        // Passthrough when bubble is off or no webcam frame has arrived yet.
-        guard bubbleEnabled, let webcam = latestWebcamBuffer else {
-            guard let output = allocateOutputBuffer() else { return screen }
-            ciContext.render(
-                CIImage(cvPixelBuffer: screen),
-                to: output,
-                bounds: CGRect(origin: .zero, size: outputSize),
-                colorSpace: CGColorSpaceCreateDeviceRGB()
-            )
-            return output
-        }
-
-        let diameter = bubbleSize.diameter
-        let radius   = diameter / 2
-
-        // — Step 1 & 2: square-crop, scale, mirror ————————————————————————————
-
-        let webcamCI  = CIImage(cvPixelBuffer: webcam)
-        let srcExtent = webcamCI.extent
-        let side      = min(srcExtent.width, srcExtent.height)
-        let cropRect  = CGRect(
-            x: (srcExtent.width  - side) / 2,
-            y: (srcExtent.height - side) / 2,
-            width: side, height: side
-        )
-        let scale = diameter / side
-
-        let scaledWebcam = webcamCI
-            .cropped(to: cropRect)
-            .transformed(by: CGAffineTransform(translationX: -cropRect.minX, y: -cropRect.minY))
-            .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-            .transformed(by: CGAffineTransform(scaleX: -1, y: 1)   // mirror
-                .translatedBy(x: -diameter, y: 0))
-
-        // — Step 3: circular mask (cached per diameter) ———————————————————————
-
-        let maskCI = circularMask(diameter: diameter)
-        guard let maskCI else { return screen }
-
-        blendFilter?.setValue(scaledWebcam,    forKey: kCIInputImageKey)
-        blendFilter?.setValue(maskCI,          forKey: kCIInputMaskImageKey)
-        blendFilter?.setValue(CIImage.empty(), forKey: kCIInputBackgroundImageKey)
-        guard let maskedWebcam = blendFilter?.outputImage else { return screen }
-
-        // — Step 4: position in output frame ——————————————————————————————————
-        //
-        // BubbleCorner.position uses a top-left origin (y increases downward).
-        // CIImage uses a bottom-left origin (y increases upward).
-        // Conversion: ciY = outputSize.height − tlY
-        //
-        let inset    = radius + 8
-        let tlCenter = bubbleCorner.position(in: outputSize, inset: inset)
-        let ciOrigin = CGPoint(
-            x: tlCenter.x - radius,
-            y: outputSize.height - tlCenter.y - radius
-        )
-        let positionedBubble = maskedWebcam
-            .transformed(by: CGAffineTransform(translationX: ciOrigin.x, y: ciOrigin.y))
-
-        // — Step 5: composite bubble atop screen ——————————————————————————————
-
         let screenCI = CIImage(cvPixelBuffer: screen)
-        compositeFilter?.setValue(positionedBubble, forKey: kCIInputImageKey)
-        compositeFilter?.setValue(screenCI,         forKey: kCIInputBackgroundImageKey)
-        guard let compositeCI = compositeFilter?.outputImage else { return screen }
 
-        // — Step 5b: composite effects layer ——————————————————————————————————
+        // — Webcam bubble (optional) ———————————————————————————————————————————
 
-        let withEffects: CIImage
-        if let effectsCI = renderEffects(outputSize: outputSize) {
-            compositeFilter?.setValue(effectsCI,   forKey: kCIInputImageKey)
-            compositeFilter?.setValue(compositeCI, forKey: kCIInputBackgroundImageKey)
-            withEffects = compositeFilter?.outputImage ?? compositeCI
-        } else {
-            withEffects = compositeCI
+        var baseImage: CIImage = screenCI
+
+        if bubbleEnabled, let webcam = latestWebcamBuffer {
+            let diameter = bubbleSize.diameter
+            let radius   = diameter / 2
+
+            // Step 1 & 2: square-crop, scale, mirror
+            let webcamCI  = CIImage(cvPixelBuffer: webcam)
+            let srcExtent = webcamCI.extent
+            let side      = min(srcExtent.width, srcExtent.height)
+            let cropRect  = CGRect(
+                x: (srcExtent.width  - side) / 2,
+                y: (srcExtent.height - side) / 2,
+                width: side, height: side
+            )
+            let scale = diameter / side
+
+            let scaledWebcam = webcamCI
+                .cropped(to: cropRect)
+                .transformed(by: CGAffineTransform(translationX: -cropRect.minX, y: -cropRect.minY))
+                .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+                .transformed(by: CGAffineTransform(scaleX: -1, y: 1)
+                    .translatedBy(x: -diameter, y: 0))
+
+            // Step 3: circular mask (cached per diameter)
+            if let maskCI = circularMask(diameter: diameter) {
+                blendFilter?.setValue(scaledWebcam,    forKey: kCIInputImageKey)
+                blendFilter?.setValue(maskCI,          forKey: kCIInputMaskImageKey)
+                blendFilter?.setValue(CIImage.empty(), forKey: kCIInputBackgroundImageKey)
+
+                if let maskedWebcam = blendFilter?.outputImage {
+                    // Step 4: position in output frame
+                    // BubbleCorner uses top-left origin; CIImage uses bottom-left.
+                    let inset    = radius + 8
+                    let tlCenter = bubbleCorner.position(in: outputSize, inset: inset)
+                    let ciOrigin = CGPoint(
+                        x: tlCenter.x - radius,
+                        y: outputSize.height - tlCenter.y - radius
+                    )
+                    let positionedBubble = maskedWebcam
+                        .transformed(by: CGAffineTransform(translationX: ciOrigin.x, y: ciOrigin.y))
+
+                    // Step 5: composite bubble atop screen
+                    compositeFilter?.setValue(positionedBubble, forKey: kCIInputImageKey)
+                    compositeFilter?.setValue(screenCI,         forKey: kCIInputBackgroundImageKey)
+                    if let composited = compositeFilter?.outputImage {
+                        baseImage = composited
+                    }
+                }
+            }
         }
 
-        // — Step 6: render to pooled buffer ———————————————————————————————————
+        // — Effects layer (always applied, bubble-independent) ————————————————
+
+        if let effectsCI = renderEffects(outputSize: outputSize) {
+            compositeFilter?.setValue(effectsCI, forKey: kCIInputImageKey)
+            compositeFilter?.setValue(baseImage, forKey: kCIInputBackgroundImageKey)
+            if let withEffects = compositeFilter?.outputImage {
+                baseImage = withEffects
+            }
+        }
+
+        // — Render to pooled buffer ————————————————————————————————————————————
 
         guard let output = allocateOutputBuffer() else { return screen }
         ciContext.render(
-            withEffects,
+            baseImage,
             to: output,
             bounds: CGRect(origin: .zero, size: outputSize),
             colorSpace: CGColorSpaceCreateDeviceRGB()
