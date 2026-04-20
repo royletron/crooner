@@ -174,6 +174,7 @@ final class RecordingSession: ObservableObject {
             let sysVol = ud.object(forKey: AppStorageKey.sysAudioVolume) as? Double ?? 1
             mixer.setVolume(Float(micVol), for: .microphone)
             mixer.setVolume(Float(sysVol), for: .systemAudio)
+            if isMuted { mixer.setEnabled(false, for: .microphone) }
 
             // Forward mic level updates to the published property for the VU meter.
             mixer.micLevelHandler = { [weak self] level in self?.micLevel = level }
@@ -224,7 +225,6 @@ final class RecordingSession: ObservableObject {
         fileWriter   = writer
 
         audioSources = mixer.sources
-        isMuted      = false
         elapsed      = 0
 
         // — Start effects tracking ————————————————————————————————————
