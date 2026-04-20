@@ -63,7 +63,7 @@ struct MenuBarView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
-        .frame(width: 340, height: 340)
+        .frame(width: 340, height: 325)
         .task { await permissions.checkAll() }
     }
 }

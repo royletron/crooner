@@ -46,11 +46,12 @@ struct SourcePickerView: View {
             contentArea
                 .frame(height: 200)
 
-            // ── Audio config + Go button (hidden for Recordings mode) ─────
-            if mode != .recordings {
+            // ── Audio config (always in layout; invisible in Recordings mode) ──
+            // Using opacity rather than conditional rendering keeps the row's
+            // height constant across all modes, which anchors the footer.
+            Group {
                 Divider()
 
-                // Mic picker + system-audio toggle
                 HStack(spacing: 8) {
                     Image(systemName: "mic.fill")
                         .foregroundStyle(.secondary)
@@ -76,11 +77,9 @@ struct SourcePickerView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-
             }
-
-            // Absorb leftover height so the header and footer never shift.
-            Spacer(minLength: 0)
+            .opacity(mode == .recordings ? 0 : 1)
+            .allowsHitTesting(mode != .recordings)
         }
         .task { await loadContent() }
         .onAppear { loadMicDevices() }
