@@ -156,7 +156,7 @@ final class ScreenCaptureEngine: NSObject {
         config.width  = Int(size.width)
         config.height = Int(size.height)
         config.minimumFrameInterval = settings.frameRate.minimumFrameInterval
-        config.pixelFormat = kCVPixelFormatType_32BGRA
+        config.pixelFormat = kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
         config.capturesAudio = true
         config.showsCursor = true
 

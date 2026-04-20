@@ -103,20 +103,25 @@ actor FileWriter {
         }
 
         // — Video input ——————————————————————————————————————————————
-        let vInput = AVAssetWriterInput(
-            mediaType: .video,
-            outputSettings: [
-                AVVideoCodecKey:  AVVideoCodecType(rawValue: settings.codec.avCodecKey),
-                AVVideoWidthKey:  Int(outputSize.width),
-                AVVideoHeightKey: Int(outputSize.height),
+        var videoSettings: [String: Any] = [
+            AVVideoCodecKey:  AVVideoCodecType(rawValue: settings.codec.avCodecKey),
+            AVVideoWidthKey:  Int(outputSize.width),
+            AVVideoHeightKey: Int(outputSize.height),
+        ]
+        if settings.codec == .hevc {
+            videoSettings[AVVideoColorPropertiesKey] = [
+                AVVideoColorPrimariesKey:     AVVideoColorPrimaries_ITU_R_709_2,
+                AVVideoTransferFunctionKey:   AVVideoTransferFunction_ITU_R_2100_HLG,
+                AVVideoYCbCrMatrixKey:        AVVideoYCbCrMatrix_ITU_R_709_2,
             ]
-        )
+        }
+        let vInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         vInput.expectsMediaDataInRealTime = true
 
         let adapt = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: vInput,
             sourcePixelBufferAttributes: [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_64RGBAHalf,
                 kCVPixelBufferWidthKey           as String: Int(outputSize.width),
                 kCVPixelBufferHeightKey          as String: Int(outputSize.height),
             ]

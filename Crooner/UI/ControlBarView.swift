@@ -94,12 +94,14 @@ struct ControlBarView: View {
 
             Spacer()
 
-            // — Mic + VU meter ─────────────────────────────────────────────
+            // — Mic mute + VU meter ────────────────────────────────────────
             HStack(spacing: 6) {
-                Image(systemName: "mic.fill")
-                    .foregroundStyle(.secondary)
-                    .font(.system(size: 12))
-                VUMeterView(level: session.micLevel)
+                BarButton(
+                    icon:       session.isMuted ? "mic.slash.fill" : "mic.fill",
+                    foreground: session.isMuted ? .red : .secondary,
+                    help:       session.isMuted ? "Unmute microphone" : "Mute microphone"
+                ) { session.muteToggle() }
+                VUMeterView(level: session.isMuted ? 0.0 : session.micLevel)
             }
 
             // — Record ─────────────────────────────────────────────────────

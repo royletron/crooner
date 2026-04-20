@@ -43,7 +43,8 @@ actor CompositorPipeline {
     /// to apply gamma correction into the output buffer, producing dark video.
     nonisolated let ciContext = CIContext(options: [
         .useSoftwareRenderer: false,
-        .workingColorSpace: CGColorSpaceCreateDeviceRGB() as Any,
+        .workingColorSpace: CGColorSpace(name: CGColorSpace.extendedLinearSRGB)! as Any,
+        .workingFormat: CIFormat.RGBAh as Any,
     ])
 
     private var pixelBufferPool:    CVPixelBufferPool?
@@ -160,7 +161,7 @@ actor CompositorPipeline {
         let bufferAttrs: [String: Any] = [
             kCVPixelBufferWidthKey              as String: Int(size.width),
             kCVPixelBufferHeightKey             as String: Int(size.height),
-            kCVPixelBufferPixelFormatTypeKey    as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferPixelFormatTypeKey    as String: kCVPixelFormatType_64RGBAHalf,
             kCVPixelBufferMetalCompatibilityKey as String: true
         ]
         CVPixelBufferPoolCreate(
@@ -289,7 +290,7 @@ actor CompositorPipeline {
             baseImage,
             to: output,
             bounds: CGRect(origin: .zero, size: outputSize),
-            colorSpace: CGColorSpaceCreateDeviceRGB()
+            colorSpace: CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!
         )
         return output
     }
