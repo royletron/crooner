@@ -293,7 +293,7 @@ private struct FilterRow: View {
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             .contentShape(Rectangle())
