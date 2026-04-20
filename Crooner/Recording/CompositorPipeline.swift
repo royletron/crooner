@@ -3,6 +3,11 @@ import CoreVideo
 import Foundation
 import ScreenCaptureKit
 
+// CVBuffer (and its typealias CVPixelBuffer) is a retain-counted CF object that
+// is safe to pass across concurrency boundaries by reference; the missing Sendable
+// conformance is a framework omission rather than a safety concern.
+extension CVBuffer: @unchecked Sendable {}
+
 // MARK: - Compositor
 
 /// Merges screen-capture frames and webcam frames into a single composited
