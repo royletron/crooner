@@ -44,7 +44,6 @@ actor CompositorPipeline {
     nonisolated let ciContext = CIContext(options: [
         .useSoftwareRenderer: false,
         .workingColorSpace: CGColorSpace(name: CGColorSpace.extendedLinearSRGB)! as Any,
-        .workingFormat: CIFormat.RGBAh as Any,
     ])
 
     private var pixelBufferPool:    CVPixelBufferPool?
