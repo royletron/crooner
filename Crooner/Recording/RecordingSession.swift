@@ -139,7 +139,6 @@ final class RecordingSession: ObservableObject {
     func startRecording() async throws {
         guard let source = selectedSource else { throw RecordingSessionError.noSourceSelected }
         guard case .staged = state else { return }
-        stopMicMonitor()
 
         // — Apply persisted settings ————————————————————————————————
         applyStoredSettings()
@@ -154,6 +153,12 @@ final class RecordingSession: ObservableObject {
             state = .countdown(remaining)
             try await Task.sleep(for: .seconds(1))
         }
+
+        // Hand off from staging monitor to main mixer without releasing the
+        // audio device in between. Stopping early caused Bluetooth to cycle
+        // through A2DP during the countdown and then reconnect in HFP at
+        // engine start, which produced a format mismatch crash.
+        stopMicMonitor()
 
         // — Create engines ——————————————————————————————————————————
         let screen = ScreenCaptureEngine()
