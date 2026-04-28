@@ -154,12 +154,6 @@ final class RecordingSession: ObservableObject {
             try await Task.sleep(for: .seconds(1))
         }
 
-        // Hand off from staging monitor to main mixer without releasing the
-        // audio device in between. Stopping early caused Bluetooth to cycle
-        // through A2DP during the countdown and then reconnect in HFP at
-        // engine start, which produced a format mismatch crash.
-        stopMicMonitor()
-
         // — Create engines ——————————————————————————————————————————
         let screen = ScreenCaptureEngine()
         let webcam = WebcamCaptureEngine()
@@ -172,6 +166,13 @@ final class RecordingSession: ObservableObject {
             let webcamStream = try await webcam.start()
             let audioStream  = try mixer.start(micDevice: selectedMicDevice,
                                                          systemAudioEnabled: systemAudioEnabled)
+
+            // Seamless Bluetooth handoff: stop the staging monitor only after
+            // the main mixer has the device open. This keeps the Bluetooth
+            // device held in HFP mode with no gap, preventing the
+            // HFP → A2DP → HFP cycle that caused the format-invalid crash
+            // inside AVAudioEngine.start().
+            stopMicMonitor()
 
             // Apply persisted audio volumes.
             let ud = UserDefaults.standard
@@ -214,7 +215,7 @@ final class RecordingSession: ObservableObject {
                 settings:    settings
             )
         } catch {
-            // Roll back any engines that did start before the failure.
+            stopMicMonitor()
             await screen.stop()
             await webcam.stop()
             mixer.stop()
