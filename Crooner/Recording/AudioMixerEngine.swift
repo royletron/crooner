@@ -23,11 +23,13 @@ struct AudioSource: Identifiable {
 
 enum AudioMixerError: LocalizedError {
     case engineAlreadyRunning
+    case engineNotRunning
     case engineStartFailed(Error)
 
     var errorDescription: String? {
         switch self {
         case .engineAlreadyRunning:       return "Audio engine is already running. Call stop() first."
+        case .engineNotRunning:           return "Audio engine is not running. Call startMonitoring() first."
         case .engineStartFailed(let e):   return "Audio engine failed to start: \(e.localizedDescription)"
         }
     }
@@ -89,6 +91,45 @@ final class AudioMixerEngine {
     private let lock = NSLock()
 
     // MARK: - Public API
+
+    /// Start the engine in level-monitoring mode for use during the staged state.
+    /// No recording tap is installed; call `beginRecording()` to start capturing.
+    /// Using a single persistent engine avoids reconnecting to the Bluetooth
+    /// device between staging and recording, which causes a brief CoreAudio
+    /// renegotiation that invalidates the AUHAL's device reference and crashes.
+    func startMonitoring(micDevice: AVCaptureDevice? = nil) throws {
+        guard !engine.isRunning else { return }
+        attachAndConnect()
+        applyVolumes()
+        setInputDevice(micDevice)
+        engine.mainMixerNode.outputVolume = 0
+        startLevelMonitoring()
+        do {
+            try engine.start()
+        } catch {
+            if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
+            throw AudioMixerError.engineStartFailed(error)
+        }
+        sysAudioPlayer.play()
+    }
+
+    /// Add the recording tap to the already-running engine.
+    /// The engine must have been started via `startMonitoring()`.
+    func beginRecording(systemAudioEnabled: Bool = true) throws -> AsyncStream<AVAudioPCMBuffer> {
+        guard engine.isRunning else { throw AudioMixerError.engineNotRunning }
+        if !systemAudioEnabled,
+           let i = sources.firstIndex(where: { $0.type == .systemAudio }) {
+            sources[i].enabled = false
+            sysAudioMixer.outputVolume = 0
+        }
+        let (stream, continuation) = AsyncStream.makeStream(of: AVAudioPCMBuffer.self)
+        lock.withLock { self.continuation = continuation }
+        tapMixer.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [weak self] buffer, _ in
+            guard let self else { return }
+            lock.withLock { _ = self.continuation?.yield(buffer) }
+        }
+        return stream
+    }
 
     /// Build the graph, start the engine, and return a stream of mixed PCM buffers.
     ///
@@ -230,6 +271,16 @@ final class AudioMixerEngine {
     }
 
     // MARK: - Graph construction
+
+    private func setInputDevice(_ device: AVCaptureDevice?) {
+        guard let device,
+              let deviceID = Self.coreAudioDeviceID(for: device),
+              let au = engine.inputNode.audioUnit else { return }
+        var id = deviceID
+        AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice,
+                             kAudioUnitScope_Global, 0, &id,
+                             UInt32(MemoryLayout<AudioDeviceID>.size))
+    }
 
     private func attachAndConnect() {
         engine.attach(micMixer)

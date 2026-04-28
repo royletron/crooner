@@ -81,7 +81,6 @@ final class RecordingSession: ObservableObject {
     private var audioMixer:        AudioMixerEngine?
     private var compositor:        CompositorPipeline?
     private var fileWriter:        FileWriter?
-    private var levelMonitorEngine: AVAudioEngine?
 
     // MARK: - Timer / subscriptions
 
@@ -117,19 +116,25 @@ final class RecordingSession: ObservableObject {
 
     // MARK: - Public API
 
-    /// Transition from `.idle` to `.staged` — shows the pill bar without starting any engines.
-    /// The user must then tap Record on the pill to actually begin.
+    /// Transition from `.idle` to `.staged` — shows the pill bar and starts the audio
+    /// engine in monitoring mode so that Bluetooth stays connected throughout staging
+    /// and into recording without a device-reconnect gap that would crash the AUHAL.
     func stage() {
         guard selectedSource != nil else { return }
         guard case .idle = state else { return }
         state = .staged
-        startMicMonitor()
+        let mixer = AudioMixerEngine()
+        try? mixer.startMonitoring(micDevice: selectedMicDevice)
+        mixer.micLevelHandler = { [weak self] level in self?.micLevel = level }
+        audioMixer = mixer
     }
 
     /// Cancel out of the staged state and return to `.idle`.
     func cancelStage() {
         guard case .staged = state else { return }
-        stopMicMonitor()
+        audioMixer?.stop()
+        audioMixer = nil
+        micLevel = 0
         state = .idle
     }
 
@@ -139,6 +144,10 @@ final class RecordingSession: ObservableObject {
     func startRecording() async throws {
         guard let source = selectedSource else { throw RecordingSessionError.noSourceSelected }
         guard case .staged = state else { return }
+        // The AudioMixerEngine was started in startMonitoring() during stage().
+        // We reuse that running engine here so the Bluetooth device is never
+        // released between staging and recording.
+        guard let mixer = audioMixer else { return }
 
         // — Apply persisted settings ————————————————————————————————
         applyStoredSettings()
@@ -154,25 +163,18 @@ final class RecordingSession: ObservableObject {
             try await Task.sleep(for: .seconds(1))
         }
 
-        // — Create engines ——————————————————————————————————————————
+        // — Create remaining engines ————————————————————————————————
         let screen = ScreenCaptureEngine()
         let webcam = WebcamCaptureEngine()
-        let mixer  = AudioMixerEngine()
         let comp   = CompositorPipeline()
         let writer = FileWriter()
 
         do {
             let screenStream = try await screen.start(source: source, settings: settings)
             let webcamStream = try await webcam.start()
-            let audioStream  = try mixer.start(micDevice: selectedMicDevice,
-                                                         systemAudioEnabled: systemAudioEnabled)
-
-            // Seamless Bluetooth handoff: stop the staging monitor only after
-            // the main mixer has the device open. This keeps the Bluetooth
-            // device held in HFP mode with no gap, preventing the
-            // HFP → A2DP → HFP cycle that caused the format-invalid crash
-            // inside AVAudioEngine.start().
-            stopMicMonitor()
+            // Add recording tap to the already-running engine — no new AUHAL
+            // connection, so Bluetooth stays in HFP mode without interruption.
+            let audioStream  = try mixer.beginRecording(systemAudioEnabled: systemAudioEnabled)
 
             // Apply persisted audio volumes.
             let ud = UserDefaults.standard
@@ -181,9 +183,6 @@ final class RecordingSession: ObservableObject {
             mixer.setVolume(Float(micVol), for: .microphone)
             mixer.setVolume(Float(sysVol), for: .systemAudio)
             if isMuted { mixer.setEnabled(false, for: .microphone) }
-
-            // Forward mic level updates to the published property for the VU meter.
-            mixer.micLevelHandler = { [weak self] level in self?.micLevel = level }
 
             // Route system audio samples from the screen engine into the mixer.
             screen.audioBufferHandler = { [weak mixer] buffer in
@@ -215,10 +214,10 @@ final class RecordingSession: ObservableObject {
                 settings:    settings
             )
         } catch {
-            stopMicMonitor()
+            audioMixer?.stop()
+            audioMixer = nil
             await screen.stop()
             await webcam.stop()
-            mixer.stop()
             state = .idle
             throw error
         }
@@ -226,7 +225,7 @@ final class RecordingSession: ObservableObject {
         // — Persist engine references ———————————————————————————————
         screenEngine = screen
         webcamEngine = webcam
-        audioMixer   = mixer
+        // audioMixer already set from stage()
         compositor   = comp
         fileWriter   = writer
 
@@ -398,57 +397,6 @@ final class RecordingSession: ObservableObject {
         if let path = ud.string(forKey: AppStorageKey.saveFolderPath) {
             settings.saveFolderURL = URL(fileURLWithPath: path, isDirectory: true)
         }
-    }
-
-    // MARK: - Private: staged mic monitor
-
-    /// Lightweight engine that drives the VU meter while the session is staged.
-    /// It is torn down before the full `AudioMixerEngine` starts so they never
-    /// compete for the input device.
-    private func startMicMonitor() {
-        let engine = AVAudioEngine()
-        let input  = engine.inputNode
-
-        // Optionally select the mic device the user picked in the source picker.
-        if let device   = selectedMicDevice,
-           let deviceID = AudioMixerEngine.coreAudioDeviceID(for: device),
-           let au       = input.audioUnit {
-            var id = deviceID
-            AudioUnitSetProperty(
-                au,
-                kAudioOutputUnitProperty_CurrentDevice,
-                kAudioUnitScope_Global, 0,
-                &id, UInt32(MemoryLayout<AudioDeviceID>.size)
-            )
-        }
-
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else { return }
-
-        // `smoothed` is a heap-captured var — safe to mutate from the audio thread.
-        var smoothed: Float = 0
-        input.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self] buffer, _ in
-            guard let data = buffer.floatChannelData, buffer.frameLength > 0 else { return }
-            let n   = Int(buffer.frameLength)
-            var sum: Float = 0
-            for i in 0..<n { sum += data[0][i] * data[0][i] }
-            let rms        = sqrt(sum / Float(n))
-            let db         = 20.0 * log10(max(rms, 1e-7))
-            let normalised = max(0, min(1, Float((db + 60.0) / 60.0)))
-            let decayed    = max(normalised, smoothed * 0.88)
-            smoothed       = decayed
-            DispatchQueue.main.async { [weak self] in self?.micLevel = decayed }
-        }
-
-        try? engine.start()
-        levelMonitorEngine = engine
-    }
-
-    private func stopMicMonitor() {
-        levelMonitorEngine?.inputNode.removeTap(onBus: 0)
-        levelMonitorEngine?.stop()
-        levelMonitorEngine = nil
-        micLevel = 0
     }
 
     // MARK: - Private: teardown
