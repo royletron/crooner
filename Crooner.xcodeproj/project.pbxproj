@@ -16,6 +16,7 @@
 		37707BD196AB8B40F24EDD88 /* AppStorageKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4710B8C7B47959C6FD96FA71 /* AppStorageKey.swift */; };
 		3BB4F49F654A137B3E51D548 /* EffectsOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040FD66C89FBAD900720ED0F /* EffectsOverlayView.swift */; };
 		40253D5718B517EC5F87EC29 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DE3EC99ED2450D0D5A0B94 /* PermissionManager.swift */; };
+		4A2AABBC70DCFAE7D5BE506B /* VideoFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6A4940833A9800F502208B6 /* VideoFilter.swift */; };
 		51C2CBE0A23A5E03BCDD2D7D /* BubbleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDBCF35AA31CFC9C7F6B4891 /* BubbleSettings.swift */; };
 		56FEB5BB421DBF717D44230F /* ScreenCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD66DD9FFA6F129BFE7D302 /* ScreenCaptureEngine.swift */; };
 		585F560082433CED4AC248F9 /* RecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE2D16976A560FA4CEE686D /* RecordingSession.swift */; };
@@ -76,6 +77,7 @@
 		C1B8C8BBE6888D1861875386 /* ScreenCaptureKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScreenCaptureKit.framework; path = System/Library/Frameworks/ScreenCaptureKit.framework; sourceTree = SDKROOT; };
 		C9ADD865DDF6C2FCDE3EFA21 /* RecordingSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSettings.swift; sourceTree = "<group>"; };
 		D146A86AB5CB4C86AE5A10C6 /* CroonerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CroonerApp.swift; sourceTree = "<group>"; };
+		D6A4940833A9800F502208B6 /* VideoFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFilter.swift; sourceTree = "<group>"; };
 		DA295A7701F120776C187C2D /* PermissionBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionBannerView.swift; sourceTree = "<group>"; };
 		DCF971F6C12D177CAA5712F1 /* BubblePanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubblePanelController.swift; sourceTree = "<group>"; };
 		FDF9A850BC1933189BEF9EF7 /* VideoToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoToolbox.framework; path = System/Library/Frameworks/VideoToolbox.framework; sourceTree = SDKROOT; };
@@ -182,6 +184,7 @@
 				BDBCF35AA31CFC9C7F6B4891 /* BubbleSettings.swift */,
 				1361C78F34E8A1987AB4E805 /* CaptureSource.swift */,
 				C9ADD865DDF6C2FCDE3EFA21 /* RecordingSettings.swift */,
+				D6A4940833A9800F502208B6 /* VideoFilter.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -295,6 +298,7 @@
 				63A056314B83297A95DF89CB /* SettingsView.swift in Sources */,
 				B3D2E05273621A108C29D1F8 /* SourcePickerView.swift in Sources */,
 				DDA6969144BAF4A122C622E3 /* VUMeterView.swift in Sources */,
+				4A2AABBC70DCFAE7D5BE506B /* VideoFilter.swift in Sources */,
 				277F686818949D3E1AF0B867 /* WebcamBubbleView.swift in Sources */,
 				89E2C50D14B0FC717D16797D /* WebcamCaptureEngine.swift in Sources */,
 			);
