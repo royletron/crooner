@@ -237,6 +237,19 @@ final class AudioMixerEngine {
         engine.attach(sysAudioMixer)
         engine.attach(tapMixer)
 
+        // Pin the engine output to the built-in device before connecting
+        // the output path. The output is silenced (mainMixerNode.outputVolume = 0)
+        // so this has no audible effect, but it prevents Bluetooth HFP/A2DP
+        // transitions from producing an invalid outputHWFormat and crashing
+        // inside AVAudioEngine.start() with an uncatchable NSException.
+        if let au = engine.outputNode.audioUnit,
+           let builtInID = Self.builtInOutputDeviceID() {
+            var id = builtInID
+            AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice,
+                                 kAudioUnitScope_Global, 0, &id,
+                                 UInt32(MemoryLayout<AudioDeviceID>.size))
+        }
+
         // Mic: inputNode → micMixer → tapMixer
         let micFormat = engine.inputNode.outputFormat(forBus: 0)
         if micFormat.sampleRate > 0 {
@@ -266,6 +279,51 @@ final class AudioMixerEngine {
     }
 
     // MARK: - CoreAudio device lookup
+
+    /// Returns the `AudioDeviceID` of the first built-in output device, or `nil`.
+    private static func builtInOutputDeviceID() -> AudioDeviceID? {
+        var size = UInt32(0)
+        var listAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope:    kAudioObjectPropertyScopeGlobal,
+            mElement:  kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject), &listAddr, 0, nil, &size
+        ) == noErr else { return nil }
+
+        let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+        var ids = [AudioDeviceID](repeating: kAudioObjectUnknown, count: count)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &listAddr, 0, nil, &size, &ids
+        ) == noErr else { return nil }
+
+        for id in ids {
+            var transport     = UInt32(0)
+            var transportSize = UInt32(MemoryLayout<UInt32>.size)
+            var transportAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyTransportType,
+                mScope:    kAudioObjectPropertyScopeGlobal,
+                mElement:  kAudioObjectPropertyElementMain
+            )
+            guard AudioObjectGetPropertyData(
+                id, &transportAddr, 0, nil, &transportSize, &transport
+            ) == noErr, transport == kAudioDeviceTransportTypeBuiltIn else { continue }
+
+            var streamSize = UInt32(0)
+            var streamAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyStreams,
+                mScope:    kAudioObjectPropertyScopeOutput,
+                mElement:  kAudioObjectPropertyElementMain
+            )
+            guard AudioObjectGetPropertyDataSize(
+                id, &streamAddr, 0, nil, &streamSize
+            ) == noErr, streamSize > 0 else { continue }
+
+            return id
+        }
+        return nil
+    }
 
     /// Translates an `AVCaptureDevice` audio UID to a CoreAudio `AudioDeviceID`.
     /// Returns `nil` if the device cannot be found (e.g. unplugged).
