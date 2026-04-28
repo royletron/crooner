@@ -270,6 +270,7 @@ final class AudioMixerEngine {
         engine.mainMixerNode.outputVolume = 0
         if !isMonitoringLevel { startLevelMonitoring() }
         try? engine.start()
+        sysAudioPlayer.play()
     }
 
     /// Installs a lightweight tap on the mic mixer to compute RMS power,
