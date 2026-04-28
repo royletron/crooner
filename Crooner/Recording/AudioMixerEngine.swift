@@ -23,11 +23,13 @@ struct AudioSource: Identifiable {
 
 enum AudioMixerError: LocalizedError {
     case engineAlreadyRunning
+    case engineNotRunning
     case engineStartFailed(Error)
 
     var errorDescription: String? {
         switch self {
         case .engineAlreadyRunning:       return "Audio engine is already running. Call stop() first."
+        case .engineNotRunning:           return "Audio engine is not running. Call startMonitoring() first."
         case .engineStartFailed(let e):   return "Audio engine failed to start: \(e.localizedDescription)"
         }
     }
@@ -87,8 +89,59 @@ final class AudioMixerEngine {
 
     private var continuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
     private let lock = NSLock()
+    private var configChangeObserver: NSObjectProtocol?
 
     // MARK: - Public API
+
+    /// Start the engine in level-monitoring mode for use during the staged state.
+    /// No recording tap is installed; call `beginRecording()` to start capturing.
+    /// Using a single persistent engine avoids reconnecting to the Bluetooth
+    /// device between staging and recording, which causes a brief CoreAudio
+    /// renegotiation that invalidates the AUHAL's device reference and crashes.
+    func startMonitoring(micDevice: AVCaptureDevice? = nil) throws {
+        guard !engine.isRunning else { return }
+        attachAndConnect()
+        applyVolumes()
+        setInputDevice(micDevice)
+        engine.mainMixerNode.outputVolume = 0
+        startLevelMonitoring()
+
+        // When the Bluetooth device switches from A2DP to HFP (triggered by the
+        // IO proc activating the mic), CoreAudio resets the engine and posts
+        // AVAudioEngineConfigurationChange. We must reconnect with the new format
+        // and restart, otherwise the engine stays stopped and beginRecording() fails.
+        configChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in self?.handleEngineConfigChange() }
+
+        do {
+            try engine.start()
+        } catch {
+            if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
+            throw AudioMixerError.engineStartFailed(error)
+        }
+        sysAudioPlayer.play()
+    }
+
+    /// Add the recording tap to the already-running engine.
+    /// The engine must have been started via `startMonitoring()`.
+    func beginRecording(systemAudioEnabled: Bool = true) throws -> AsyncStream<AVAudioPCMBuffer> {
+        guard engine.isRunning else { throw AudioMixerError.engineNotRunning }
+        if !systemAudioEnabled,
+           let i = sources.firstIndex(where: { $0.type == .systemAudio }) {
+            sources[i].enabled = false
+            sysAudioMixer.outputVolume = 0
+        }
+        let (stream, continuation) = AsyncStream.makeStream(of: AVAudioPCMBuffer.self)
+        lock.withLock { self.continuation = continuation }
+        tapMixer.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [weak self] buffer, _ in
+            guard let self else { return }
+            lock.withLock { _ = self.continuation?.yield(buffer) }
+        }
+        return stream
+    }
 
     /// Build the graph, start the engine, and return a stream of mixed PCM buffers.
     ///
@@ -155,6 +208,10 @@ final class AudioMixerEngine {
 
     /// Stop the engine and finish the output stream.
     func stop() {
+        if let obs = configChangeObserver {
+            NotificationCenter.default.removeObserver(obs)
+            configChangeObserver = nil
+        }
         tapMixer.removeTap(onBus: 0)
         if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
         smoothedLevel = 0
@@ -197,6 +254,25 @@ final class AudioMixerEngine {
 
     // MARK: - Level monitoring
 
+    /// Called on the main thread when CoreAudio resets the engine (e.g. Bluetooth
+    /// switching from A2DP to HFP when the mic IO proc activates). Reconnects
+    /// the mic path with the new device format and restarts the engine.
+    private func handleEngineConfigChange() {
+        // Disconnect and reconnect the mic path so format-dependent connections
+        // are rebuilt against the device's new format (e.g. HFP at 16 kHz).
+        engine.disconnectNodeInput(micMixer)
+        engine.disconnectNodeOutput(micMixer)
+        let micFormat = engine.inputNode.outputFormat(forBus: 0)
+        if micFormat.sampleRate > 0 {
+            engine.connect(engine.inputNode, to: micMixer, format: micFormat)
+            engine.connect(micMixer,         to: tapMixer, format: micFormat)
+        }
+        engine.mainMixerNode.outputVolume = 0
+        if !isMonitoringLevel { startLevelMonitoring() }
+        try? engine.start()
+        sysAudioPlayer.play()
+    }
+
     /// Installs a lightweight tap on the mic mixer to compute RMS power,
     /// convert to a normalised 0–1 value (–60 dB … 0 dB), and push it to
     /// `micLevelHandler` on the main thread with a fast-attack / slow-decay
@@ -231,11 +307,34 @@ final class AudioMixerEngine {
 
     // MARK: - Graph construction
 
+    private func setInputDevice(_ device: AVCaptureDevice?) {
+        guard let device,
+              let deviceID = Self.coreAudioDeviceID(for: device),
+              let au = engine.inputNode.audioUnit else { return }
+        var id = deviceID
+        AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice,
+                             kAudioUnitScope_Global, 0, &id,
+                             UInt32(MemoryLayout<AudioDeviceID>.size))
+    }
+
     private func attachAndConnect() {
         engine.attach(micMixer)
         engine.attach(sysAudioPlayer)
         engine.attach(sysAudioMixer)
         engine.attach(tapMixer)
+
+        // Pin the engine output to the built-in device before connecting
+        // the output path. The output is silenced (mainMixerNode.outputVolume = 0)
+        // so this has no audible effect, but it prevents Bluetooth HFP/A2DP
+        // transitions from producing an invalid outputHWFormat and crashing
+        // inside AVAudioEngine.start() with an uncatchable NSException.
+        if let au = engine.outputNode.audioUnit,
+           let builtInID = Self.builtInOutputDeviceID() {
+            var id = builtInID
+            AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice,
+                                 kAudioUnitScope_Global, 0, &id,
+                                 UInt32(MemoryLayout<AudioDeviceID>.size))
+        }
 
         // Mic: inputNode → micMixer → tapMixer
         let micFormat = engine.inputNode.outputFormat(forBus: 0)
@@ -266,6 +365,51 @@ final class AudioMixerEngine {
     }
 
     // MARK: - CoreAudio device lookup
+
+    /// Returns the `AudioDeviceID` of the first built-in output device, or `nil`.
+    private static func builtInOutputDeviceID() -> AudioDeviceID? {
+        var size = UInt32(0)
+        var listAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope:    kAudioObjectPropertyScopeGlobal,
+            mElement:  kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject), &listAddr, 0, nil, &size
+        ) == noErr else { return nil }
+
+        let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+        var ids = [AudioDeviceID](repeating: kAudioObjectUnknown, count: count)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &listAddr, 0, nil, &size, &ids
+        ) == noErr else { return nil }
+
+        for id in ids {
+            var transport     = UInt32(0)
+            var transportSize = UInt32(MemoryLayout<UInt32>.size)
+            var transportAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyTransportType,
+                mScope:    kAudioObjectPropertyScopeGlobal,
+                mElement:  kAudioObjectPropertyElementMain
+            )
+            guard AudioObjectGetPropertyData(
+                id, &transportAddr, 0, nil, &transportSize, &transport
+            ) == noErr, transport == kAudioDeviceTransportTypeBuiltIn else { continue }
+
+            var streamSize = UInt32(0)
+            var streamAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyStreams,
+                mScope:    kAudioObjectPropertyScopeOutput,
+                mElement:  kAudioObjectPropertyElementMain
+            )
+            guard AudioObjectGetPropertyDataSize(
+                id, &streamAddr, 0, nil, &streamSize
+            ) == noErr, streamSize > 0 else { continue }
+
+            return id
+        }
+        return nil
+    }
 
     /// Translates an `AVCaptureDevice` audio UID to a CoreAudio `AudioDeviceID`.
     /// Returns `nil` if the device cannot be found (e.g. unplugged).
