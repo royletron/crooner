@@ -89,6 +89,7 @@ final class AudioMixerEngine {
 
     private var continuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
     private let lock = NSLock()
+    private var configChangeObserver: NSObjectProtocol?
 
     // MARK: - Public API
 
@@ -104,6 +105,17 @@ final class AudioMixerEngine {
         setInputDevice(micDevice)
         engine.mainMixerNode.outputVolume = 0
         startLevelMonitoring()
+
+        // When the Bluetooth device switches from A2DP to HFP (triggered by the
+        // IO proc activating the mic), CoreAudio resets the engine and posts
+        // AVAudioEngineConfigurationChange. We must reconnect with the new format
+        // and restart, otherwise the engine stays stopped and beginRecording() fails.
+        configChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in self?.handleEngineConfigChange() }
+
         do {
             try engine.start()
         } catch {
@@ -196,6 +208,10 @@ final class AudioMixerEngine {
 
     /// Stop the engine and finish the output stream.
     func stop() {
+        if let obs = configChangeObserver {
+            NotificationCenter.default.removeObserver(obs)
+            configChangeObserver = nil
+        }
         tapMixer.removeTap(onBus: 0)
         if isMonitoringLevel { micMixer.removeTap(onBus: 0); isMonitoringLevel = false }
         smoothedLevel = 0
@@ -237,6 +253,24 @@ final class AudioMixerEngine {
     }
 
     // MARK: - Level monitoring
+
+    /// Called on the main thread when CoreAudio resets the engine (e.g. Bluetooth
+    /// switching from A2DP to HFP when the mic IO proc activates). Reconnects
+    /// the mic path with the new device format and restarts the engine.
+    private func handleEngineConfigChange() {
+        // Disconnect and reconnect the mic path so format-dependent connections
+        // are rebuilt against the device's new format (e.g. HFP at 16 kHz).
+        engine.disconnectNodeInput(micMixer)
+        engine.disconnectNodeOutput(micMixer)
+        let micFormat = engine.inputNode.outputFormat(forBus: 0)
+        if micFormat.sampleRate > 0 {
+            engine.connect(engine.inputNode, to: micMixer, format: micFormat)
+            engine.connect(micMixer,         to: tapMixer, format: micFormat)
+        }
+        engine.mainMixerNode.outputVolume = 0
+        if !isMonitoringLevel { startLevelMonitoring() }
+        try? engine.start()
+    }
 
     /// Installs a lightweight tap on the mic mixer to compute RMS power,
     /// convert to a normalised 0–1 value (–60 dB … 0 dB), and push it to
