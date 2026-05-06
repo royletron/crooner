@@ -285,11 +285,15 @@ actor CompositorPipeline {
         // — Render to pooled buffer ————————————————————————————————————————————
 
         guard let output = allocateOutputBuffer() else { return screen }
+        // Render with a gamma-encoded sRGB output colour space so the half-float
+        // buffer contains values the H.264/HEVC encoder can interpret as BT.709
+        // SDR.  The CIContext working space is still extended-linear sRGB,
+        // which keeps filter precision and HDR headroom during compositing.
         ciContext.render(
             baseImage,
             to: output,
             bounds: CGRect(origin: .zero, size: outputSize),
-            colorSpace: CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!
         )
         return output
     }
