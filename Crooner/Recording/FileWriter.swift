@@ -103,18 +103,36 @@ actor FileWriter {
         }
 
         // — Video input ——————————————————————————————————————————————
-        var videoSettings: [String: Any] = [
-            AVVideoCodecKey:  AVVideoCodecType(rawValue: settings.codec.avCodecKey),
-            AVVideoWidthKey:  Int(outputSize.width),
-            AVVideoHeightKey: Int(outputSize.height),
+        // Bitrate scales with pixel-rate so 4K60 gets the headroom it needs and
+        // 720p30 doesn't waste disk.  ~0.2 bits/pixel/frame matches QuickTime's
+        // screen-recording quality (≈12 Mbps at 1080p30, ≈50 Mbps at 4K30).
+        // HEVC compresses ~40 % more efficiently for the same visual quality.
+        let pixelsPerSecond = outputSize.width * outputSize.height
+                              * CGFloat(settings.frameRate.rawValue)
+        let bitsPerPixel: CGFloat = settings.codec == .hevc ? 0.12 : 0.20
+        let bitRate = Int(pixelsPerSecond * bitsPerPixel)
+
+        var compression: [String: Any] = [
+            AVVideoAverageBitRateKey:           bitRate,
+            AVVideoExpectedSourceFrameRateKey:  settings.frameRate.rawValue,
+            AVVideoMaxKeyFrameIntervalKey:      settings.frameRate.rawValue * 2,
         ]
-        if settings.codec == .hevc {
-            videoSettings[AVVideoColorPropertiesKey] = [
-                AVVideoColorPrimariesKey:     AVVideoColorPrimaries_ITU_R_709_2,
-                AVVideoTransferFunctionKey:   AVVideoTransferFunction_ITU_R_2100_HLG,
-                AVVideoYCbCrMatrixKey:        AVVideoYCbCrMatrix_ITU_R_709_2,
-            ]
+        if settings.codec == .h264 {
+            compression[AVVideoProfileLevelKey]    = AVVideoProfileLevelH264HighAutoLevel
+            compression[AVVideoH264EntropyModeKey] = AVVideoH264EntropyModeCABAC
         }
+
+        var videoSettings: [String: Any] = [
+            AVVideoCodecKey:                  AVVideoCodecType(rawValue: settings.codec.avCodecKey),
+            AVVideoWidthKey:                  Int(outputSize.width),
+            AVVideoHeightKey:                 Int(outputSize.height),
+            AVVideoCompressionPropertiesKey:  compression,
+            AVVideoColorPropertiesKey: [
+                AVVideoColorPrimariesKey:    AVVideoColorPrimaries_ITU_R_709_2,
+                AVVideoTransferFunctionKey:  AVVideoTransferFunction_ITU_R_709_2,
+                AVVideoYCbCrMatrixKey:       AVVideoYCbCrMatrix_ITU_R_709_2,
+            ],
+        ]
         let vInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         vInput.expectsMediaDataInRealTime = true
 
