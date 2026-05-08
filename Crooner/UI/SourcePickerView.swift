@@ -85,7 +85,15 @@ struct SourcePickerView: View {
         .onAppear { loadMicDevices() }
         // Always clear the selected source when the mode changes so the Go
         // button (in the footer) is correctly disabled until a source is picked.
-        .onChange(of: mode) { _ in session.selectedSource = nil }
+        // Also silently refresh the window list when entering the Window tab —
+        // SCShareableContent is fetched once at boot otherwise, so newly opened
+        // windows wouldn't appear.
+        .onChange(of: mode) { newMode in
+            session.selectedSource = nil
+            if newMode == .window {
+                Task { await refreshContent() }
+            }
+        }
         // Keep session in sync eagerly so MenuBarView's Go button can simply
         // call session.stage() without needing to read local @State.
         .onChange(of: selectedMicID) { id in
@@ -154,6 +162,15 @@ struct SourcePickerView: View {
             loadError = "Couldn't load screen content.\nCheck Screen Recording access."
         }
         isLoading = false
+    }
+
+    /// Re-fetch shareable content without flipping `isLoading`, so the existing
+    /// window list stays visible while the refresh runs.  On success the list
+    /// updates in place; on failure we keep the stale list rather than show an error.
+    private func refreshContent() async {
+        if let fresh = try? await SCShareableContent.fetchCurrent() {
+            content = fresh
+        }
     }
 
     private func errorPlaceholder(_ message: String) -> some View {
