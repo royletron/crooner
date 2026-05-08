@@ -163,12 +163,17 @@ final class BubblePanelController {
     // MARK: - Panel management
 
     private func showOrMove(size: BubbleSize, corner: BubbleCorner, in area: CGRect) {
-        let diameter = size.diameter
-        let center   = freeDragCenter ?? defaultCenter(corner: corner, in: area, diameter: diameter)
-        let origin   = CGPoint(x: center.x - diameter / 2, y: center.y - diameter / 2)
+        let diameter  = size.diameter
+        let pad       = WebcamBubbleView.shadowPadding
+        let panelSide = diameter + pad * 2
+        let center    = freeDragCenter ?? defaultCenter(corner: corner, in: area, diameter: diameter)
+        // Panel is larger than the bubble by `pad` on every side so the drop
+        // shadow has room to render; offset the origin so the bubble's centre
+        // still lands at `center`.
+        let origin    = CGPoint(x: center.x - panelSide / 2, y: center.y - panelSide / 2)
 
         if let existing = panel {
-            if existing.frame.width != diameter {
+            if existing.frame.width != panelSide {
                 // Size changed — recreate so SwiftUI gets the correct diameter.
                 heartbeat         = nil
                 existing.isPinned = false
@@ -186,9 +191,11 @@ final class BubblePanelController {
     }
 
     private func createPanel(origin: CGPoint, diameter: CGFloat, constraintArea: CGRect) {
-        let size = CGSize(width: diameter, height: diameter)
+        let pad        = WebcamBubbleView.shadowPadding
+        let panelSide  = diameter + pad * 2
+        let panelSize  = CGSize(width: panelSide, height: panelSide)
         let p = BubblePanel(
-            contentRect: CGRect(origin: origin, size: size),
+            contentRect: CGRect(origin: origin, size: panelSize),
             styleMask:   .borderless,
             backing:     .buffered,
             defer:       false
@@ -202,7 +209,7 @@ final class BubblePanelController {
         p.hidesOnDeactivate    = false   // don't hide when the app becomes inactive
         p.canHide              = false   // don't hide via NSApp.hide(_:)
 
-        let container = NSView(frame: CGRect(origin: .zero, size: size))
+        let container = NSView(frame: CGRect(origin: .zero, size: panelSize))
         container.autoresizingMask = [.width, .height]
 
         let hosting = NSHostingView(rootView: WebcamBubbleView(diameter: diameter))
@@ -210,8 +217,12 @@ final class BubblePanelController {
         hosting.autoresizingMask = [.width, .height]
         container.addSubview(hosting)
 
-        let drag = DragHandlerView(frame: container.bounds)
-        drag.autoresizingMask = [.width, .height]
+        // Drag handler is sized to the bubble only (centred inside the padded
+        // panel) so the shadow region around it doesn't accept mouse events.
+        let dragFrame = CGRect(x: pad, y: pad, width: diameter, height: diameter)
+        let drag = DragHandlerView(frame: dragFrame)
+        drag.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
+        drag.bubbleDiameter   = diameter
         drag.constraintArea   = constraintArea
         drag.onDragMoved      = { [weak self] center in self?.freeDragCenter = center }
         container.addSubview(drag)   // added last → receives mouse events first
@@ -282,6 +293,10 @@ private final class DragHandlerView: NSView {
     var onDragMoved: ((CGPoint) -> Void)?
     /// When set, the panel is clamped inside this rect during drag.
     var constraintArea: CGRect?
+    /// Diameter of the visible bubble.  The panel is larger than this by a
+    /// fixed shadow padding, so the constraint must be expressed in terms of
+    /// the bubble — not the panel — to keep the bubble fully inside the area.
+    var bubbleDiameter: CGFloat = 0
 
     private var startMouse:  NSPoint?
     private var startOrigin: NSPoint?
@@ -304,9 +319,11 @@ private final class DragHandlerView: NSView {
         let cur = NSEvent.mouseLocation
         var newOrigin = NSPoint(x: so.x + cur.x - sm.x, y: so.y + cur.y - sm.y)
         if let area = constraintArea {
-            let d = window.frame.width
-            newOrigin.x = max(area.minX,     min(area.maxX - d, newOrigin.x))
-            newOrigin.y = max(area.minY,     min(area.maxY - d, newOrigin.y))
+            // Translate the area into panel-origin space: the panel extends
+            // `pad` beyond the bubble on every side.
+            let pad = (window.frame.width - bubbleDiameter) / 2
+            newOrigin.x = max(area.minX - pad, min(area.maxX - bubbleDiameter - pad, newOrigin.x))
+            newOrigin.y = max(area.minY - pad, min(area.maxY - bubbleDiameter - pad, newOrigin.y))
         }
         window.setFrameOrigin(newOrigin)
         reportCenter()
