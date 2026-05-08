@@ -30,8 +30,15 @@ private final class BubbleViewModel: ObservableObject {
 /// Circular webcam preview bubble.  Mirrors the image horizontally so the user
 /// sees a "mirror" view (natural for selfie cameras).
 /// Starts/stops its own `WebcamCaptureEngine` with the view's lifetime.
+///
+/// The view's outer frame is `diameter + 2 * shadowPadding` so the drop shadow
+/// has room to render without being clipped by the host panel.
 struct WebcamBubbleView: View {
     let diameter: CGFloat
+
+    /// Transparent margin reserved around the bubble for the drop shadow.
+    /// Callers that size the host panel must use `diameter + 2 * shadowPadding`.
+    static let shadowPadding: CGFloat = 16
 
     @StateObject private var vm = BubbleViewModel()
 
@@ -54,6 +61,7 @@ struct WebcamBubbleView: View {
         .frame(width: diameter, height: diameter)
         .clipShape(Circle())
         .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+        .padding(Self.shadowPadding)
         .task { await vm.start() }
         .onDisappear { Task { await vm.stop() } }
     }

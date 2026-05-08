@@ -30,6 +30,7 @@
 		89E2C50D14B0FC717D16797D /* WebcamCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9506D38CB4FEEF58D687FE /* WebcamCaptureEngine.swift */; };
 		9227227C7A56FD395AC426AD /* SCShareableContent+Fetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0656BCBF2331082387B9A2D5 /* SCShareableContent+Fetch.swift */; };
 		93C1BA4744F5FC4B5B4692C6 /* RecordingSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9ADD865DDF6C2FCDE3EFA21 /* RecordingSettings.swift */; };
+		B7C8D9E0F1A2B3C4D5E6F708 /* RecordingAreaOutlineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F4A5B6C7D8E9F0A1B2 /* RecordingAreaOutlineController.swift */; };
 		99858BB1214FEBF664E97636 /* FileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50BA6A728879DC6CEACDB58 /* FileWriter.swift */; };
 		B3D2E05273621A108C29D1F8 /* SourcePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B253C247427BE7F168066EC /* SourcePickerView.swift */; };
 		BE0AEF39FAD31955180C929E /* AreaSelectorOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FECA73E780B46326C052C1BD /* AreaSelectorOverlay.swift */; };
@@ -75,6 +76,7 @@
 		B9C087E7AF3E68A8F423AB49 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		BDBCF35AA31CFC9C7F6B4891 /* BubbleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubbleSettings.swift; sourceTree = "<group>"; };
 		C1B8C8BBE6888D1861875386 /* ScreenCaptureKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScreenCaptureKit.framework; path = System/Library/Frameworks/ScreenCaptureKit.framework; sourceTree = SDKROOT; };
+		C1D2E3F4A5B6C7D8E9F0A1B2 /* RecordingAreaOutlineController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingAreaOutlineController.swift; sourceTree = "<group>"; };
 		C9ADD865DDF6C2FCDE3EFA21 /* RecordingSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSettings.swift; sourceTree = "<group>"; };
 		D146A86AB5CB4C86AE5A10C6 /* CroonerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CroonerApp.swift; sourceTree = "<group>"; };
 		D6A4940833A9800F502208B6 /* VideoFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFilter.swift; sourceTree = "<group>"; };
@@ -128,6 +130,7 @@
 				574D080F346C915C6BA144D4 /* ControlBarController.swift */,
 				71C19308533E35338E2B7365 /* ControlBarView.swift */,
 				040FD66C89FBAD900720ED0F /* EffectsOverlayView.swift */,
+				C1D2E3F4A5B6C7D8E9F0A1B2 /* RecordingAreaOutlineController.swift */,
 				B9C087E7AF3E68A8F423AB49 /* SettingsView.swift */,
 				8B253C247427BE7F168066EC /* SourcePickerView.swift */,
 				175B237EEE6503BAC7CE6FF2 /* VUMeterView.swift */,
@@ -291,6 +294,7 @@
 				2A70ABD5CC442C0BE6FE8A09 /* MenuBarView.swift in Sources */,
 				CCE3EEAD845B9A0B2AAAAAB0 /* PermissionBannerView.swift in Sources */,
 				40253D5718B517EC5F87EC29 /* PermissionManager.swift in Sources */,
+				B7C8D9E0F1A2B3C4D5E6F708 /* RecordingAreaOutlineController.swift in Sources */,
 				585F560082433CED4AC248F9 /* RecordingSession.swift in Sources */,
 				93C1BA4744F5FC4B5B4692C6 /* RecordingSettings.swift in Sources */,
 				9227227C7A56FD395AC426AD /* SCShareableContent+Fetch.swift in Sources */,
